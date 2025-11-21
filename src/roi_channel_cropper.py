@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ROI-based Channel/Phase Cropping — v2.7
+ROI-based Channel/Phase Cropping — v1
 (Timelapse + 포맷별 하위폴더 + Log + GUI 유지)
 
 - Timelapse ON/OFF 지원:

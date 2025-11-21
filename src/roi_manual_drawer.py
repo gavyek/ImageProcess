@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ROI Manual Drawer + Auto-Segmentation + Fast Overlay + ImageJ ROI ZIP (v9.2)
+ROI Manual Drawer + Auto-Segmentation + Fast Overlay + ImageJ ROI ZIP (v1)
 --------------------------------------------------------------------------------
 - Timelapse 기본 해제
 - JSON은 roi/ (표준명 Sxx[_tyy].json)에 저장

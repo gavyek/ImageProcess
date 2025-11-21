@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-FRET Ratio Builder (v13-stage-parallel, inline-LOG GUI)
-- 같은 창 하단에 실시간 Log 패널 내장
-- 실행 중 GUI는 유지, 버튼/옵션 비활성화 → 완료 후 자동 재활성화
-- Stage 단위 병렬 처리 (v11 결과 포맷/정렬 그대로)
+FRET Ratio Builder (v1-stage-parallel, inline-LOG GUI)
 """
 
 import os, re, glob, json, time, traceback, threading, queue

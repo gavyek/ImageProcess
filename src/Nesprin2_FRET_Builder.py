@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Nesprin2_FRET Builder (v4, patched)
+Nesprin2_FRET Builder (v1, patched)
 - Log창 활성화 + 단일 실행 흐름 정리 + 파일명 저장 규칙 보완
 - PATCH
   - PNG master ON일 때만 패널/크롭/풀 이미지 옵션 활성화
