@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Morphology Builder (V1.5) — Timelapse 토글 + 파일명 파서 통일 + Pillow 폴백
+Morphology Builder (V1) — Timelapse 토글 + 파일명 파서 통일 + Pillow 폴백
 - ROI 다각형 기반 형태 파라미터 계산
 - 파일명 규칙:
     • Timelapse ON  : SXX_TXX_X.tif  (예: S2_t00_1.tif → S02_t00)
