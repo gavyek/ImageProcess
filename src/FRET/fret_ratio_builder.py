@@ -378,6 +378,7 @@ class App(tk.Tk):
             "img_dir": None, "roi_dir": None, "out_root": "",
             "timelapse": False,
             "ratio_mode": "Donor/FRET",
+            "donor_ch": 1, "acceptor_ch": 2,
             "bg_scope": "full", "bg_mode": "percentile",
             "percentile": 1.0, "per_channel_p": False,
             "donor_p": 1.0, "fret_p": 1.0,
@@ -405,6 +406,7 @@ class App(tk.Tk):
         self.img_v=tk.StringVar(); self.roi_v=tk.StringVar(); self.out_v=tk.StringVar(value="")
         self.tl_v=tk.BooleanVar(value=p["timelapse"])
         self.mode_v=tk.StringVar(value=p["ratio_mode"])
+        self.donor_ch_v=tk.StringVar(value=str(p["donor_ch"])); self.acceptor_ch_v=tk.StringVar(value=str(p["acceptor_ch"]))
         self.scope_v=tk.StringVar(value=p["bg_scope"])
         self.bgmode_v=tk.StringVar(value=p["bg_mode"])
         self.p_v=tk.StringVar(value=str(p["percentile"]))
@@ -450,6 +452,10 @@ class App(tk.Tk):
         fr=tk.Frame(self); fr.grid(row=4,column=1,sticky="w",**pad)
         tk.Radiobutton(fr,text="FRET / Donor",variable=self.mode_v,value="FRET/Donor").pack(side="left",padx=4)
         tk.Radiobutton(fr,text="Donor / FRET",variable=self.mode_v,value="Donor/FRET").pack(side="left",padx=4)
+        tk.Label(fr,text="Donor ch").pack(side="left",padx=(12,4))
+        tk.Entry(fr,textvariable=self.donor_ch_v,width=4).pack(side="left")
+        tk.Label(fr,text="Acceptor ch").pack(side="left",padx=(10,4))
+        tk.Entry(fr,textvariable=self.acceptor_ch_v,width=4).pack(side="left")
 
         # BG
         bgf=tk.LabelFrame(self,text="BG 옵션"); bgf.grid(row=5,column=0,columnspan=2,sticky="we",padx=8,pady=(4,6))
@@ -644,10 +650,16 @@ class App(tk.Tk):
         except:
             raise ValueError("병렬 프로세스 수는 1 ~ CPU 코어 수 이내 정수")
 
+        try:
+            donor_ch = int(self.donor_ch_v.get()); acceptor_ch = int(self.acceptor_ch_v.get())
+            assert 1 <= donor_ch <= 32 and 1 <= acceptor_ch <= 32 and donor_ch != acceptor_ch
+        except:
+            raise ValueError("Donor/Acceptor 채널 번호를 1~32 사이 서로 다르게 ?�력?�세??")
+
         self.params.update(
             img_dir=img, roi_dir=roi, out_root=self.out_v.get().strip(),
             timelapse=bool(self.tl_v.get()),
-            ratio_mode=self.mode_v.get(),
+            ratio_mode=self.mode_v.get(), donor_ch=donor_ch, acceptor_ch=acceptor_ch,
             bg_scope=self.scope_v.get(), bg_mode=self.bgmode_v.get(),
             percentile=p, per_channel_p=bool(self.per_ch_v.get()),
             donor_p=d_p, fret_p=f_p, clip_neg=bool(self.clip_v.get()), eps_percentile=eps,
@@ -706,16 +718,17 @@ class App(tk.Tk):
 
             donors, accs = {}, {}
             timelapse = bool(p["timelapse"])
+            donor_ch = int(p["donor_ch"]); acceptor_ch = int(p["acceptor_ch"])
             for path in files:
                 base = os.path.basename(path)
                 s_num, t_num, ch = parse_tokens(base, timelapse)
-                if s_num is None or ch not in (1,2):
+                if s_num is None or ch is None:
                     continue
                 s = fmt_stage(s_num)
                 t = fmt_time(t_num) if (timelapse and t_num is not None) else None
                 key = (s, t)
-                if ch == 1: donors[key] = path
-                else: accs[key] = path
+                if ch == donor_ch: donors[key] = path
+                elif ch == acceptor_ch: accs[key] = path
 
             pair_keys = sorted(set(donors.keys()) & set(accs.keys()), key=lambda k: (
                 int(re.search(r'\d+', k[0]).group()),
@@ -724,7 +737,7 @@ class App(tk.Tk):
             pairs = [((s,t), donors[(s,t)], accs[(s,t)]) for (s,t) in pair_keys]
 
             if not pairs:
-                self.log("매칭되는 (donor=_1, acceptor=_2) 쌍이 없습니다.")
+                self.log(f"매칭되는 (donor=_{donor_ch}, acceptor=_{acceptor_ch}) 쌍이 없습니다.")
                 return
 
             if p["subset_on"] and (p["subset_stage"] is not None):
