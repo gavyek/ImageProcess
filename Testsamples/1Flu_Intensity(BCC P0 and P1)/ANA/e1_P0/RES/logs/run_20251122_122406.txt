@@ -1,0 +1,10 @@
+[START] 2025-11-22 12:24:06
+[정보] Fluor Intensity Builder 실행 시작
+img_dir=C:/0WORKcoding/ImageProcess/Testsamples/1Flu_Intensity(BCC P0 and P1)/ANA/e1_P0
+roi_dir=C:/0WORKcoding/ImageProcess/Testsamples/1Flu_Intensity(BCC P0 and P1)/ANA/e1_P0/roi
+out_root=C:/0WORKcoding/ImageProcess/Testsamples/1Flu_Intensity(BCC P0 and P1)/ANA/e1_P0/RES
+[정보] 총 작업 단위(ROI/키): 18
+[DONE-QUANT] S01 ROI=18
+[저장 완료] C:/0WORKcoding/ImageProcess/Testsamples/1Flu_Intensity(BCC P0 and P1)/ANA/e1_P0/RES\xls\fluor_intensity_perROI.xlsx 및 CSV
+[완료] 모든 처리가 종료되었습니다.
+[END] 2025-11-22 12:24:14
