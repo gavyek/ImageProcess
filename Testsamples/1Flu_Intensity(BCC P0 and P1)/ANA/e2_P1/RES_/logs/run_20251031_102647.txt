@@ -1,0 +1,8 @@
+[START] 20251031_102647
+[PARAM] img_dir=C:/Users/gavye/내 드라이브/2개발/0-1 본업 관련 코딩/Fluor_INT test샘플/EXP/TIFF/P1
+[PARAM] roi_dir=C:/Users/gavye/내 드라이브/2개발/0-1 본업 관련 코딩/Fluor_INT test샘플/EXP/TIFF/P1/roi
+[PARAM] out_root=C:/Users/gavye/내 드라이브/2개발/0-1 본업 관련 코딩/Fluor_INT test샘플/EXP/TIFF/P1/RES_
+[PARAM] timelapse=False
+[PARAM] channels=[1, 2, 3, 4], out_xls=True, out_tif=False, out_png=False
+[KEY] 1/1 — S01
+[END] 작업 종료
