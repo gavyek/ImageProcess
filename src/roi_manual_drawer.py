@@ -1,15 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ROI Manual Drawer + Auto-Segmentation + Fast Overlay + ImageJ ROI ZIP (v1.1)
+ROI Manual Drawer + Auto-Segmentation + Fast Overlay + ImageJ ROI ZIP (v1)
 --------------------------------------------------------------------------------
-v1.1 patch
--- 영어모드 가능 (-mode EN으로 실행하면 영어로 나타남)
-
+- Timelapse 기본 해제
+- JSON은 roi/ (표준명 Sxx[_tyy].json)에 저장
+- mask/overlay/zip은 roi/mask, roi/overlay, roi/zip 하위로 각각 저장
+- Pseudocolor(그레이/단색) 선택 가능, overlay는 초고속(PIL) 렌더 + 다운스케일
+- mask 생성은 skimage.draw.polygon 사용(초고속, 원본 해상도 유지)
+- 모든 주요 단계 print 로깅(진행률/경로/예외)
+- [중요] 채널 선택 로직: 초기 채널은 "선호 시작 채널"이며 Stage/Time 단위로 모든 채널 자동 수집
+- [NEW] Ctrl+Q/Cmd+Q: 전체 종료, Q: 현 스테이지만 종료
+- [NEW] 뷰 파라미터(p_low/p_high/gamma/색상 등)와 강화옵션을 JSON에 저장
+- [NEW] 다음 스테이지에도 마지막 뷰/임계값 설정 자동 승계
+- [NEW] ROI 확정 팝업을 커스텀 모달(Y/N/Space/Enter/Esc 지원)로 교체 + 항상 topmost
+- [FIX] 임계값 재입력(simpledialog)이 창 뒤로 숨는 문제 해결(parent/topmost)
+- [FIX] pan/zoom 키 충돌 제거(아이콘만)
 필요 패키지: numpy matplotlib pillow tifffile scipy scikit-image roifile
 """
 
-import os, re, glob, zipfile, platform, tempfile, json, time, sys
+import os, re, glob, zipfile, platform, tempfile, json, time
 import numpy as np
 
 import matplotlib
@@ -43,97 +53,6 @@ from tkinter import (
     DISABLED, NORMAL, OptionMenu
 )
 import tkinter as _tk
-
-# -------------------- Language resources --------------------
-LANG_DEFAULT = "ko"
-LANG_CURRENT = LANG_DEFAULT
-
-STRINGS = {
-    "ko": {
-        "title_startup": "ROI 그리기/채널/모드 선택",
-        "label_folder": "TIF 폴더",
-        "btn_browse": "찾기",
-        "label_channel": "시작 채널(번호)",
-        "label_mode": "모드",
-        "mode_new": "신규(New)",
-        "mode_edit": "수정(Edit)",
-        "timelapse_cb": "Timelapse(시간 포함: 파일명=SXX_TXX_X)",
-        "label_stage": "Stage (숫자)",
-        "label_time": "Timepoint (숫자)",
-        "cb_include": "Edit 모드에서 ROI 없는 파일도 포함",
-        "label_tol": "경계 단순화 tolerance",
-        "label_min_area": "최소 area (px²)",
-        "label_color": "Pseudocolor",
-        "btn_ok": "확인",
-        "btn_cancel": "취소",
-        "err_title": "오류",
-        "err_folder": "유효한 폴더를 선택하세요",
-        "err_channel": "채널 번호는 0~999 사이 숫자",
-        "err_stage": "Stage는 숫자",
-        "err_time": "Timepoint는 숫자",
-        "err_tol": "Tolerance는 0.1~5.0",
-        "err_min_area": "최소 area는 0 이상",
-        "exit_cancelled": "작업이 취소되었습니다.",
-        "err_no_tif": "[오류] 폴더에 TIF 파일이 없습니다.",
-        "hud_instr": "P: 새 ROI | Enter/Space/Y: 확정 | Esc/N: 취소 | U: 마지막 되돌리기 | C: 모두 지우기 | Ctrl+S/Cmd+S: 저장 | Q: 빠르게 종료 | PageUp/Down: ROI 이동 | Delete: ROI 삭제 | Tab/Shift+Tab: 채널 순환 | +/-: gamma | [: p_low | ]: p_high",
-        "log_folder": "폴더: {folder}",
-        "log_mode": "모드: {mode} | 시작채널(번호): {start_ch} | timelapse={timelapse} | include_no_roi={include_no} | 대상 Stage/Time {count}개",
-        "log_paths": "ROI: {outdir} | mask: {mask_dir} | overlay: {overlay_dir} | zip: {zip_dir}",
-        "log_filter": "필터: Stage={stage}, Time={time}",
-        "log_params": "tolerance={tolerance:.2f}, min_area={min_area:.0f}, pseudocolor={color_mode}",
-        "log_overlay": "overlay: FAST(PIL) mode, max side = {maxpx}px",
-        "log_force_quit": "사용자 요청으로 전체 종료(Ctrl+Q/Cmd+Q).",
-        "log_no_tasks": "[정보] 처리할 항목이 없습니다. (mode={mode}, include_no_roi={include_no}, timelapse={timelapse})",
-    },
-    "en": {
-        "title_startup": "ROI Drawer / Channel / Mode",
-        "label_folder": "TIF folder",
-        "btn_browse": "Browse",
-        "label_channel": "Start channel (number)",
-        "label_mode": "Mode",
-        "mode_new": "New",
-        "mode_edit": "Edit",
-        "timelapse_cb": "Timelapse (filename=SXX_TXX_X)",
-        "label_stage": "Stage (number)",
-        "label_time": "Timepoint (number)",
-        "cb_include": "In Edit mode include files without ROI",
-        "label_tol": "Boundary simplify tolerance",
-        "label_min_area": "Min area (px²)",
-        "label_color": "Pseudocolor",
-        "btn_ok": "OK",
-        "btn_cancel": "Cancel",
-        "err_title": "Error",
-        "err_folder": "Select a valid folder",
-        "err_channel": "Channel number must be 0~999",
-        "err_stage": "Stage must be a number",
-        "err_time": "Timepoint must be a number",
-        "err_tol": "Tolerance must be 0.1~5.0",
-        "err_min_area": "Min area must be >= 0",
-        "exit_cancelled": "Operation was cancelled.",
-        "err_no_tif": "[Error] No TIF files in the folder.",
-        "hud_instr": "P: new ROI | Enter/Space/Y: accept | Esc/N: cancel | U: undo last | C: clear all | Ctrl+S/Cmd+S: save | Q: quick quit | PageUp/Down: move ROI | Delete: delete ROI | Tab/Shift+Tab: cycle channel | +/-: gamma | [: p_low | ]: p_high",
-        "log_folder": "Folder: {folder}",
-        "log_mode": "Mode: {mode} | start_ch: {start_ch} | timelapse={timelapse} | include_no_roi={include_no} | targets {count}",
-        "log_paths": "ROI: {outdir} | mask: {mask_dir} | overlay: {overlay_dir} | zip: {zip_dir}",
-        "log_filter": "Filter: Stage={stage}, Time={time}",
-        "log_params": "tolerance={tolerance:.2f}, min_area={min_area:.0f}, pseudocolor={color_mode}",
-        "log_overlay": "overlay: FAST(PIL) mode, max side = {maxpx}px",
-        "log_force_quit": "User requested full quit (Ctrl+Q/Cmd+Q).",
-        "log_no_tasks": "[Info] Nothing to process. (mode={mode}, include_no_roi={include_no}, timelapse={timelapse})",
-    },
-}
-
-
-def t(key: str, default=None, lang=None) -> str:
-    """Simple i18n lookup with ko default."""
-    lng = (lang or LANG_CURRENT or LANG_DEFAULT)
-    if lng not in STRINGS:
-        lng = LANG_DEFAULT
-    if key in STRINGS[lng]:
-        return STRINGS[lng][key]
-    if key in STRINGS.get(LANG_DEFAULT, {}):
-        return STRINGS[LANG_DEFAULT][key]
-    return default if default is not None else key
 
 
 # ===================== 설정(Overlay 초고속) =====================
@@ -597,19 +516,21 @@ class ROIAnnotator:
         return ans["val"]
 
     def _hud_str(self):
-        instructions = t("hud_instr", default="", lang=LANG_CURRENT)
         inv = "ON" if self.invert else "off"
         bp  = f"BP={'ON' if self.use_bandpass else 'off'}(σs={self.sigma_small:.1f},σl={self.sigma_large:.1f})"
         us  = f"US={'ON' if self.use_unsharp else 'off'}(k={self.unsharp_amount:.1f},r={self.unsharp_radius:.1f})"
         ch  = f"CLAHE={'ON' if self.use_clahe else 'off'}(clip={self.clahe_clip:.3f})"
         ed  = f"EDGE={'ON' if self.edge_overlay else 'off'}"
         ln  = f"LocalNorm={'ON' if self.local_norm else 'off'}"
-        view_line = (f"[View] p_low={self.p_low:.1f}%, p_high={self.p_high:.1f}%, "
-                     f"gamma={self.gamma:.2f}, invert={inv}, color={self.color_mode} | {bp} | {us} | {ch} | {ed} | {ln}")
-        return (instructions + "\n" + view_line) if instructions else view_line
+        return (f"[View] p_low={self.p_low:.1f}%, p_high={self.p_high:.1f}%, "
+                f"gamma={self.gamma:.2f}, invert={inv}, color={self.color_mode} | {bp} | {us} | {ch} | {ed} | {ln}")
 
     def _draw_hud(self):
-        instructions = t("hud_instr", default="", lang=LANG_CURRENT)
+        instructions = (
+            "P: 새 ROI | Enter/Space/Y: 확정 | Esc/N: 취소 | U: 마지막 삭제 | C: 모두 지우기 | "
+            "Ctrl+S/Cmd+S: 저장 | Q: 스테이지 종료 | Ctrl+Q/Cmd+Q: 전체 종료 | "
+            "밝기(p_low): a/A,d/D | 밝기(p_high): s/S,f/F | 감마: g/G | Pesudocolor: 0~5 |"
+        )
         self.ax.figure.text(
             0.02, 0.02, instructions,
             color="w", fontsize=9,
@@ -1261,11 +1182,8 @@ def save_roi_bundle(outdir, mask_dir, overlay_dir, zip_dir, base_S_t, rois, img,
     return json_path, mask_path, png_path, zip_path
 
 # ----------------------- startup GUI -----------------------
-def startup_gui(lang: str = LANG_DEFAULT):
-    root = Tk()
-    root.title(t("title_startup", "ROI Drawer / Channel / Mode", lang=lang))
-    root.resizable(False, False)
-
+def startup_gui():
+    root = Tk(); root.title("ROI 폴더/채널/모드 선택"); root.resizable(False, False)
     folder_var      = StringVar()
     ch_var          = StringVar(value="3")
     mode_var        = StringVar(value="new")
@@ -1273,12 +1191,13 @@ def startup_gui(lang: str = LANG_DEFAULT):
     time_var        = StringVar(value="")
     include_no_roi  = BooleanVar(value=False)
     timelapse_var   = BooleanVar(value=False)
+
     tol_var         = DoubleVar(value=1.0)
     min_area_var    = StringVar(value="40")
     color_var       = StringVar(value="grayscale")
 
     def browse():
-        p = filedialog.askdirectory(title=t("label_folder", "TIF folder", lang=lang))
+        p = filedialog.askdirectory(title="ROI를 그릴 TIF 폴더 선택")
         if p:
             folder_var.set(p)
 
@@ -1289,19 +1208,19 @@ def startup_gui(lang: str = LANG_DEFAULT):
         e_time.configure(state=(NORMAL if is_time else DISABLED))
         cb_include.configure(state=(NORMAL if is_edit else DISABLED))
 
-    def on_any_change(*_):
+    def on_any_change(*args):
         update_widgets()
 
     def on_ok():
         path = folder_var.get().strip()
         if not path or not os.path.isdir(path):
-            messagebox.showerror(t("err_title", "Error", lang=lang), t("err_folder", "Select a valid folder", lang=lang)); return
+            messagebox.showerror("오류", "유효한 폴더를 선택하세요."); return
         try:
             ch = int(ch_var.get().strip())
             if ch < 0 or ch > 999:
                 raise ValueError
         except Exception:
-            messagebox.showerror(t("err_title", "Error", lang=lang), t("err_channel", "Channel number must be 0~999", lang=lang)); return
+            messagebox.showerror("오류", "채널 번호는 0–999 사이의 정수로 입력하세요."); return
 
         s_num = t_num = None
         if mode_var.get() == "edit":
@@ -1310,28 +1229,28 @@ def startup_gui(lang: str = LANG_DEFAULT):
                 try:
                     s_num = int(st)
                 except Exception:
-                    messagebox.showerror(t("err_title", "Error", lang=lang), t("err_stage", "Stage must be a number", lang=lang)); return
+                    messagebox.showerror("오류","Stage는 숫자"); return
             if timelapse_var.get():
                 tt = time_var.get().strip()
                 if tt:
                     try:
                         t_num = int(tt)
                     except Exception:
-                        messagebox.showerror(t("err_title", "Error", lang=lang), t("err_time", "Timepoint must be a number", lang=lang)); return
+                        messagebox.showerror("오류","Timepoint는 숫자"); return
 
         try:
             tol = float(tol_var.get())
             if not (0.1 <= tol <= 5.0):
                 raise ValueError
         except Exception:
-            messagebox.showerror(t("err_title", "Error", lang=lang), t("err_tol", "Tolerance must be 0.1~5.0", lang=lang)); return
+            messagebox.showerror("오류", "Tolerance는 0.1–5.0"); return
 
         try:
             ma = float(min_area_var.get())
             if ma < 0:
                 raise ValueError
         except Exception:
-            messagebox.showerror(t("err_title", "Error", lang=lang), t("err_min_area", "Min area must be >= 0", lang=lang)); return
+            messagebox.showerror("오류", "최소 area는 0 이상"); return
 
         root.selected = {
             "folder": path, "channel": ch, "mode": mode_var.get(),
@@ -1346,69 +1265,75 @@ def startup_gui(lang: str = LANG_DEFAULT):
         root.selected = None
         root.destroy()
 
-    pad = {"padx": 8, "pady": 6}
-
-    Label(root, text=t("label_folder", "TIF folder", lang=lang)).grid(row=0, column=0, sticky="w", **pad)
+    pad = {'padx':8, 'pady':6}
+    Label(root, text="TIF 폴더").grid(row=0, column=0, sticky="w", **pad)
     f1 = Frame(root); f1.grid(row=0, column=1, sticky="ew", **pad)
     Entry(f1, textvariable=folder_var, width=50).pack(side="left")
-    Button(f1, text=t("btn_browse", "Browse", lang=lang), width=8, command=browse).pack(side="left", padx=6)
+    Button(f1, text="찾기", width=8, command=browse).pack(side="left", padx=6)
 
-    Label(root, text=t("label_channel", "Start channel (number)", lang=lang)).grid(row=1, column=0, sticky="w", **pad)
+    Label(root, text="시작 채널(선호)").grid(row=1, column=0, sticky="w", **pad)
     Entry(root, textvariable=ch_var, width=10).grid(row=1, column=1, sticky="w", **pad)
 
-    Label(root, text=t("label_mode", "Mode", lang=lang)).grid(row=2, column=0, sticky="w", **pad)
+    Label(root, text="모드").grid(row=2, column=0, sticky="w", **pad)
     f2 = Frame(root); f2.grid(row=2, column=1, sticky="w", **pad)
-    Radiobutton(f2, text=t("mode_new", "New", lang=lang),  variable=mode_var, value="new", command=on_any_change).pack(side="left", padx=4)
-    Radiobutton(f2, text=t("mode_edit", "Edit", lang=lang), variable=mode_var, value="edit", command=on_any_change).pack(side="left", padx=4)
+    Radiobutton(f2, text="신규(New)",  variable=mode_var, value="new",
+                command=on_any_change).pack(side="left", padx=4)
+    Radiobutton(f2, text="수정(Edit)", variable=mode_var, value="edit",
+                command=on_any_change).pack(side="left", padx=4)
 
-    Checkbutton(root, text=t("timelapse_cb", "Timelapse (filename=SXX_TXX_X)", lang=lang), variable=timelapse_var, command=on_any_change).grid(row=3, column=0, columnspan=2, sticky="w", padx=8, pady=(6, 2))
+    Checkbutton(
+        root,
+        text="Timelapse(시간축 있음: 파일명 SXX_TXX_X)",
+        variable=timelapse_var,
+        command=on_any_change
+    ).grid(row=3, column=0, columnspan=2, sticky="w", padx=8, pady=(6,2))
 
-    Label(root, text=t("label_stage", "Stage (number)", lang=lang)).grid(row=4, column=0, sticky="w", **pad)
-    e_stage = Entry(root, textvariable=stage_var, width=10); e_stage.grid(row=4, column=1, sticky="w", **pad)
-    Label(root, text=t("label_time", "Timepoint (number)", lang=lang)).grid(row=5, column=0, sticky="w", **pad)
-    e_time = Entry(root, textvariable=time_var, width=10); e_time.grid(row=5, column=1, sticky="w", **pad)
+    Label(root, text="Stage (숫자)").grid(row=4, column=0, sticky="w", **pad)
+    e_stage = Entry(root, textvariable=stage_var, width=10)
+    e_stage.grid(row=4, column=1, sticky="w", **pad)
 
-    cb_include = Checkbutton(root, text=t("cb_include", "Include files without ROI in Edit mode", lang=lang), variable=include_no_roi, command=on_any_change)
+    Label(root, text="Timepoint (숫자)").grid(row=5, column=0, sticky="w", **pad)
+    e_time = Entry(root, textvariable=time_var, width=10)
+    e_time.grid(row=5, column=1, sticky="w", **pad)
+
+    cb_include = Checkbutton(
+        root,
+        text="Edit 모드에서 ROI 없는 파일도 포함",
+        variable=include_no_roi,
+        command=on_any_change
+    )
     cb_include.grid(row=6, column=0, columnspan=2, sticky="w", padx=8, pady=4)
 
-    Label(root, text=t("label_tol", "Boundary simplify tolerance", lang=lang)).grid(row=7, column=0, sticky="w", **pad)
-    s_tol = Scale(root, variable=tol_var, from_=0.1, to=5.0, resolution=0.1, orient=HORIZONTAL, length=260)
+    Label(root, text="경계 단순화 tolerance").grid(row=7, column=0, sticky="w", **pad)
+    s_tol = Scale(
+        root, variable=tol_var,
+        from_=0.1, to=5.0, resolution=0.1,
+        orient=HORIZONTAL, length=260
+    )
     s_tol.grid(row=7, column=1, sticky="w", **pad)
-    Label(root, text=t("label_min_area", "Min area (px^2)", lang=lang)).grid(row=8, column=0, sticky="w", **pad)
+
+    Label(root, text="최소 area (px²)").grid(row=8, column=0, sticky="w", **pad)
     Entry(root, textvariable=min_area_var, width=10).grid(row=8, column=1, sticky="w", **pad)
 
-    Label(root, text=t("label_color", "Pseudocolor", lang=lang)).grid(row=9, column=0, sticky="w", **pad)
-    OptionMenu(root, color_var, "grayscale", "cyan", "blue", "green", "red", "yellow").grid(row=9, column=1, sticky="w", **pad)
+    Label(root, text="Pseudocolor").grid(row=9, column=0, sticky="w", **pad)
+    OptionMenu(
+        root, color_var,
+        "grayscale", "cyan", "blue", "green", "red", "yellow"
+    ).grid(row=9, column=1, sticky="w", **pad)
 
     fbtn = Frame(root); fbtn.grid(row=10, column=0, columnspan=2, pady=10)
-    Button(fbtn, text=t("btn_ok", "OK", lang=lang), width=12, command=on_ok).pack(side="left", padx=6)
-    Button(fbtn, text=t("btn_cancel", "Cancel", lang=lang), width=12, command=on_cancel).pack(side="left", padx=6)
+    Button(fbtn, text="확인", width=12, command=on_ok).pack(side="left", padx=6)
+    Button(fbtn, text="취소", width=12, command=on_cancel).pack(side="left", padx=6)
 
     update_widgets()
     root.mainloop()
     if not getattr(root, "selected", None):
-        raise SystemExit(t("exit_cancelled", "Operation was cancelled.", lang=lang))
+        raise SystemExit("작업이 취소되었습니다.")
     return root.selected
-
-# ----------------------- lang picker -----------------------
-def pick_lang_from_argv(argv):
-    lang = LANG_DEFAULT
-    for i, a in enumerate(argv):
-        al = str(a).lower()
-        if al in ("-mode", "--mode") and (i + 1) < len(argv):
-            if str(argv[i+1]).lower().startswith("en"):
-                lang = "en"
-        if al in ("-mode=en", "--mode=en", "/mode=en"):
-            lang = "en"
-    return lang
 
 # ----------------------- main -----------------------
 def main():
-    global LANG_CURRENT
-    LANG_CURRENT = pick_lang_from_argv(sys.argv[1:])
-    lang = LANG_CURRENT
-
-    params        = startup_gui(lang=lang)
+    params        = startup_gui()
     folder        = params["folder"]
     start_ch      = params["channel"]
     mode          = params["mode"]
@@ -1422,7 +1347,7 @@ def main():
 
     files_all = list_tifs(folder)
     if not files_all:
-        print(t("err_no_tif", "[Error] No TIF files in the folder.", lang=lang))
+        print("[오류] 폴더에 TIF 파일이 없습니다.")
         return
 
     outdir, mask_dir, overlay_dir, zip_dir = ensure_outdirs(folder)

@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-FRET Ratio Builder (v1.1-stage-parallel, inline-LOG GUI)
-v1.1 patch (25.11.22)
---channel 선택 여부 가능
-
+FRET Ratio Builder (v1-stage-parallel, inline-LOG GUI)
 """
 
 import os, re, glob, json, time, traceback, threading, queue
