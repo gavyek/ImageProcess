@@ -30,6 +30,229 @@ from tkinter import scrolledtext
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
+# -------------------- Language resources --------------------
+LANG_DEFAULT = "ko"
+LANG_CURRENT = LANG_DEFAULT
+
+STRINGS = {
+    "ko": {
+        "title_app": "Fluor Intensity Builder (v3.1.1 + Log)",
+        "lbl_img": "이미지 폴더",
+        "lbl_roi": "ROI 폴더",
+        "lbl_out": "출력 루트(선택)",
+        "btn_browse": "찾기",
+        "cb_timelapse": "Timelapse(시간축 있음: 파일명 SXX_TXX_X)",
+        "ch_group": "채널 설정",
+        "ch_total": "총 채널 수",
+        "ch_num_col": "채널 #",
+        "ch_color_col": "컬러",
+        "bg_group": "BG 옵션",
+        "bg_scope": "Scope",
+        "bg_mode": "Mode",
+        "bg_percentile": "percentile p(%)",
+        "per_channel_p": "채널별 p",
+        "clip_neg": "음수 clip",
+        "bg_stride": "bg_stride",
+        "px_um": "픽셀크기 (µm/px) — 스케일바용",
+        "out_group": "출력 그룹",
+        "out_xls": "XLS/CSV",
+        "out_tif": "TIF (BG-correct / ROI masking)",
+        "out_png": "PNG",
+        "out_tif_mask": "TIF ROI 외부 0 마스킹",
+        "out_raw_crop": "원본 Crop TIF 저장",
+        "png_opts": "PNG 옵션",
+        "png_full": "Full image 저장",
+        "png_crop": "Crop image 저장",
+        "btn_enable": "활성화",
+        "mask_out": "ROI 외부 마스킹",
+        "sb_add": "Scale bar 추가",
+        "sb_len": "길이(µm):",
+        "sb_pos": "위치:",
+        "sb_font": "글자크기:",
+        "cmap_reset": "Color map 재설정",
+        "cmap_label": "Color map:",
+        "cmin": "최소값:",
+        "cmax": "최대값:",
+        "show_cbar": "Color bar 표시",
+        "png_dpi": "PNG DPI:",
+        "png_tif_misc": "PNG/TIF 공통 자동 스케일",
+        "fixed_crop": "고정 crop 픽셀 크기 사용",
+        "wxh": "WxH(px):",
+        "auto_clip": "Auto clip p_low / p_high (%)",
+        "subset_group": "부분 추출",
+        "subset_on": "부분 추출 활성화",
+        "subset_stage": "Stage(필수)",
+        "subset_time": "Time(선택; timelapse)",
+        "subset_roi": "ROI(선택)",
+        "par_group": "병렬 처리",
+        "par_use_pool": "ProcessPoolExecutor 사용",
+        "par_workers": "프로세스 개수 (0=자동)",
+        "btn_run": "실행",
+        "btn_cancel": "중단",
+        "btn_exit": "종료",
+        "eta_init": "경과: 00:00:00 | 남은: --:--:--",
+        "eta_fmt": "경과: {elapsed} | 남은: {eta}",
+        "status_done": "{item} 완료",
+        "status_progress": "{item} 진행",
+        "init_status": "초기화 중...",
+        "msg_running": "[알림] 이미 실행 중입니다.",
+        "msg_cancel_req": "[알림] 중단 요청됨. 현재 작업 마무리 후 종료합니다.",
+        "confirm_exit_title": "종료 확인",
+        "confirm_exit_body": "현재 작업이 진행 중입니다. 정말 종료할까요?",
+        "err_title": "오류",
+        "err_img": "유효한 이미지 경로를 선택하세요.",
+        "err_roi": "유효한 ROI 경로를 선택하세요.",
+        "err_ch_count": "채널 수는 1~4",
+        "err_ch_num": "{idx}번째 채널 번호가 올바르지 않습니다 (0~4).",
+        "err_ch_dup": "채널 번호가 중복되었습니다.",
+        "err_percentile": "percentile p는 0~10",
+        "err_per_channel": "채널별 p는 0~10",
+        "err_bg_stride": "bg_stride는 1~100 정수",
+        "err_px": "픽셀크기(µm/px) 입력 오류",
+        "err_crop": "crop 픽셀 크기(32~8000)",
+        "err_stage": "Stage는 정수",
+        "err_time": "Timepoint는 정수",
+        "err_roi_num": "ROI는 1 이상 정수",
+        "err_auto_clip": "Auto clip p_low/p_high는 0~100, p_low < p_high",
+        "err_workers": "프로세스 개수는 0~64 정수",
+        "log_start": "[정보] Fluor Intensity Builder 실행 시작",
+        "log_cancel": "[알림] 사용자 요청으로 작업을 중단합니다.",
+        "log_no_img": "분석 가능한 이미지가 없습니다.",
+        "log_subset_none": "[부분추출] 조건(Stage={stage})에 맞는 파일이 없습니다.",
+        "log_steps": "[정보] 총 작업 단위(ROI/파일): {steps}",
+        "log_done": "[완료] 모든 처리가 종료되었습니다.",
+        "log_xls_warn": "[주의] XLS 저장 오류: {err}",
+        "log_no_roi_table": "[주의] ROI가 없어 정량 테이블이 생성되지 않았습니다.",
+        "log_no_roi": "[SKIP] {stid} — ROI 없음",
+        "log_no_ch": "[SKIP] {stid} — 채널 없음",
+        "log_done_quant": "[DONE-QUANT] {stid} ROI={roi_count}",
+        "log_save_xls": "[저장 완료] {xlsx} 및 CSV",
+        "browse_img": "이미지 경로 선택",
+        "browse_roi": "ROI 경로 선택",
+        "browse_out": "출력 루트 선택",
+    },
+    "en": {
+        "title_app": "Fluor Intensity Builder (v3.1.1 + Log)",
+        "lbl_img": "Image folder",
+        "lbl_roi": "ROI folder",
+        "lbl_out": "Output root (optional)",
+        "btn_browse": "Browse",
+        "cb_timelapse": "Timelapse (filename: SXX_TXX_X)",
+        "ch_group": "Channel settings",
+        "ch_total": "Total channels",
+        "ch_num_col": "Channel #",
+        "ch_color_col": "Color",
+        "bg_group": "BG options",
+        "bg_scope": "Scope",
+        "bg_mode": "Mode",
+        "bg_percentile": "percentile p(%)",
+        "per_channel_p": "per-channel p",
+        "clip_neg": "clip negatives",
+        "bg_stride": "bg_stride",
+        "px_um": "Pixel size (µm/px) — for scalebar",
+        "out_group": "Outputs",
+        "out_xls": "XLS/CSV",
+        "out_tif": "TIF (BG-correct / ROI masking)",
+        "out_png": "PNG",
+        "out_tif_mask": "TIF mask outside ROI to 0",
+        "out_raw_crop": "Save original crop TIF",
+        "png_opts": "PNG options",
+        "png_full": "Full image (grayscale)",
+        "png_crop": "Crop image (per ROI)",
+        "btn_enable": "Enable",
+        "mask_out": "Mask outside ROI",
+        "sb_add": "Add scalebar",
+        "sb_len": "Length(µm):",
+        "sb_pos": "Anchor:",
+        "sb_font": "Font size:",
+        "cmap_reset": "Reset colormap",
+        "cmap_label": "Color map:",
+        "cmin": "Min:",
+        "cmax": "Max:",
+        "show_cbar": "Show colorbar",
+        "png_dpi": "PNG DPI:",
+        "png_tif_misc": "PNG/TIF auto scale",
+        "fixed_crop": "Use fixed crop size",
+        "wxh": "WxH(px):",
+        "auto_clip": "Auto clip p_low / p_high (%)",
+        "subset_group": "Subset",
+        "subset_on": "Enable subset",
+        "subset_stage": "Stage(required)",
+        "subset_time": "Time(optional; timelapse)",
+        "subset_roi": "ROI(optional)",
+        "par_group": "Parallel",
+        "par_use_pool": "Use ProcessPoolExecutor",
+        "par_workers": "Processes (0=auto)",
+        "btn_run": "Run",
+        "btn_cancel": "Cancel",
+        "btn_exit": "Exit",
+        "eta_init": "Elapsed: 00:00:00 | ETA: --:--:--",
+        "eta_fmt": "Elapsed: {elapsed} | ETA: {eta}",
+        "status_done": "{item} done",
+        "status_progress": "{item} processing",
+        "init_status": "Initializing...",
+        "msg_running": "[Info] Already running.",
+        "msg_cancel_req": "[Info] Cancel requested. Finishing current task...",
+        "confirm_exit_title": "Confirm exit",
+        "confirm_exit_body": "Processing is running. Really exit?",
+        "err_title": "Input error",
+        "err_img": "Select a valid image folder.",
+        "err_roi": "Select a valid ROI folder.",
+        "err_ch_count": "Channels must be 1~4",
+        "err_ch_num": "Channel #{idx} must be 0~4.",
+        "err_ch_dup": "Channel numbers are duplicated.",
+        "err_percentile": "percentile p must be 0~10",
+        "err_per_channel": "Per-channel p must be 0~10",
+        "err_bg_stride": "bg_stride must be 1~100",
+        "err_px": "Pixel size (µm/px) input error",
+        "err_crop": "Crop size must be 32~8000",
+        "err_stage": "Stage must be integer",
+        "err_time": "Timepoint must be integer",
+        "err_roi_num": "ROI must be integer >= 1",
+        "err_auto_clip": "Auto clip p_low/p_high must be 0~100 and p_low < p_high",
+        "err_workers": "Processes must be 0~64",
+        "log_start": "[Info] Fluor Intensity Builder start",
+        "log_cancel": "[Info] Cancel requested; stopping after current task.",
+        "log_no_img": "No images found to process.",
+        "log_subset_none": "[Subset] No files match Stage={stage}.",
+        "log_steps": "[Info] Total units (ROI/file): {steps}",
+        "log_done": "[Done] All processing finished.",
+        "log_xls_warn": "[Warn] XLS save error: {err}",
+        "log_no_roi_table": "[Warn] No ROI; metric table not generated.",
+        "log_no_roi": "[SKIP] {stid} — ROI missing",
+        "log_no_ch": "[SKIP] {stid} — channel missing",
+        "log_done_quant": "[DONE-QUANT] {stid} ROI={roi_count}",
+        "log_save_xls": "[Saved] {xlsx} and CSV",
+        "browse_img": "Select image folder",
+        "browse_roi": "Select ROI folder",
+        "browse_out": "Select output root",
+    },
+}
+
+
+def t(key: str, default=None, lang=None) -> str:
+    lng = (lang or LANG_CURRENT or LANG_DEFAULT)
+    if lng not in STRINGS:
+        lng = LANG_DEFAULT
+    if key in STRINGS.get(lng, {}):
+        return STRINGS[lng][key]
+    if key in STRINGS.get(LANG_DEFAULT, {}):
+        return STRINGS[LANG_DEFAULT][key]
+    return default if default is not None else key
+
+
+def pick_lang_from_argv(argv):
+    lang = LANG_DEFAULT
+    for i, a in enumerate(argv):
+        al = str(a).lower()
+        if al in ("-mode", "--mode", "-lang", "--lang") and i + 1 < len(argv):
+            nxt = str(argv[i + 1]).lower()
+            if nxt.startswith("en"):
+                lang = "en"
+        if al in ("en", "english", "-mode=en", "--mode=en", "-lang=en", "--lang=en"):
+            lang = "en"
+    return lang
+
 # ===================== 공통 유틸 =====================
 
 def ensure_dir(p):
@@ -565,7 +788,7 @@ def save_excel(rows_all, keymap, xls_dir):
                 med_mat.to_excel(w, sheet_name=f"ch{ch}_median_matrix")
 
     df.to_csv(csv, index=False)
-    print(f"[저장 완료] {xlsx} 및 CSV")
+    print(t("log_save_xls", "[저장 완료] {xlsx} 및 CSV").format(xlsx=xlsx))
 
 # ===================== 워커 함수 (ProcessPool용) =====================
 
@@ -580,8 +803,12 @@ def _process_key_task(task):
     반환: {rows, steps, logs}
     """
     try:
+        global LANG_CURRENT
+        if "lang" in task:
+            LANG_CURRENT = task["lang"]
+        translate = t
         s = task["s"]
-        t = task["t"]
+        t_code = task["t"]
         stid = task["stid"]
         chs_to_quant = task["chs_to_quant"]
         chmap = task["chmap"]
@@ -596,17 +823,17 @@ def _process_key_task(task):
             imgs_raw[ch] = read_2d(pth)
         if not imgs_raw:
             return {"rows": [], "steps": 1,
-                    "logs": [f"[SKIP] {stid} — 채널 없음"]}
+                    "logs": [translate("log_no_ch", "[SKIP] {stid} — 채널 없음").format(stid=stid)]}
 
         any_img = next(iter(imgs_raw.values()))
         H, W = any_img.shape
 
         polys, union_mask = load_roi_polys_or_mask(
-            roi_dir, s, t, timelapse, img_shape=(H, W)
+            roi_dir, s, t_code, timelapse, img_shape=(H, W)
         )
         if (polys is None) and (union_mask is None) and task["skip_no_roi"]:
             return {"rows": [], "steps": 1,
-                    "logs": [f"[SKIP] {stid} — ROI 없음"]}
+                    "logs": [translate("log_no_roi", "[SKIP] {stid} — ROI 없음").format(stid=stid)]}
 
         # BG scope
         scope_mask = None
@@ -648,7 +875,7 @@ def _process_key_task(task):
         for r in per_roi:
             r.update({
                 "stage": s,
-                "time": t if timelapse else None,
+                "time": t_code if timelapse else None,
                 "bg_scope": task["bg_scope"],
                 "bg_mode": task["bg_mode"],
                 "clip_neg": bool(task["clip_neg"]),
@@ -663,7 +890,9 @@ def _process_key_task(task):
                 )
             rows.append(r)
 
-        logs = [f"[DONE-QUANT] {stid} ROI={len(per_roi)}"]
+        logs = [translate("log_done_quant", "[DONE-QUANT] {stid} ROI={roi_count}").format(
+            stid=stid, roi_count=len(per_roi)
+        )]
         steps = max(1, len(per_roi))
 
         if not (task["do_tif"] or task["do_png"]):
@@ -917,8 +1146,10 @@ def _process_key_task(task):
 
 class FluorIntensityApp:
     def __init__(self):
+        global LANG_CURRENT
+        LANG_CURRENT = pick_lang_from_argv(sys.argv)
         self.root = tk.Tk()
-        self.root.title("Fluor Intensity Builder (v3.1.1 + Log)")
+        self.root.title(t("title_app", "Fluor Intensity Builder (v3.1.1 + Log)"))
         self.root.resizable(False, False)
 
         self.running = False
@@ -936,6 +1167,7 @@ class FluorIntensityApp:
     # ---------- GUI 구성 ----------
 
     def _build_gui(self):
+        tr = lambda key, default=None: t(key, default)
         pad = {'padx':8, 'pady':6}
 
         # 경로
@@ -1015,37 +1247,37 @@ class FluorIntensityApp:
         self.proc_workers_v = tk.StringVar(value="0")
 
         # ----- 경로 입력 -----
-        tk.Label(self.root, text="이미지 폴더").grid(row=0, column=0, sticky="w", **pad)
+        tk.Label(self.root, text=tr("lbl_img", "이미지 폴더")).grid(row=0, column=0, sticky="w", **pad)
         fr = tk.Frame(self.root); fr.grid(row=0, column=1, sticky="ew", **pad)
         tk.Entry(fr, textvariable=self.img_v, width=52).pack(side="left")
-        tk.Button(fr, text="찾기", width=8,
-                  command=lambda:self._browse_dir(self.img_v)).pack(side="left", padx=6)
+        tk.Button(fr, text=tr("btn_browse", "찾기"), width=8,
+                  command=lambda:self._browse_dir(self.img_v, t("browse_img", "이미지 경로 선택"))).pack(side="left", padx=6)
 
-        tk.Label(self.root, text="ROI 폴더").grid(row=1, column=0, sticky="w", **pad)
+        tk.Label(self.root, text=tr("lbl_roi", "ROI 폴더")).grid(row=1, column=0, sticky="w", **pad)
         fr = tk.Frame(self.root); fr.grid(row=1, column=1, sticky="ew", **pad)
         tk.Entry(fr, textvariable=self.roi_v, width=52).pack(side="left")
-        tk.Button(fr, text="찾기", width=8,
-                  command=lambda:self._browse_dir(self.roi_v)).pack(side="left", padx=6)
+        tk.Button(fr, text=tr("btn_browse", "찾기"), width=8,
+                  command=lambda:self._browse_dir(self.roi_v, t("browse_roi", "ROI 경로 선택"))).pack(side="left", padx=6)
 
-        tk.Label(self.root, text="출력 루트(선택)").grid(row=2, column=0, sticky="w", **pad)
+        tk.Label(self.root, text=tr("lbl_out", "출력 루트(선택)")).grid(row=2, column=0, sticky="w", **pad)
         fr = tk.Frame(self.root); fr.grid(row=2, column=1, sticky="ew", **pad)
         tk.Entry(fr, textvariable=self.out_v, width=52).pack(side="left")
-        tk.Button(fr, text="찾기", width=8,
-                  command=lambda:self._browse_dir(self.out_v)).pack(side="left", padx=6)
+        tk.Button(fr, text=tr("btn_browse", "찾기"), width=8,
+                  command=lambda:self._browse_dir(self.out_v, t("browse_out", "출력 루트 선택"))).pack(side="left", padx=6)
 
         tk.Checkbutton(
             self.root,
-            text="Timelapse(시간축 있음: 파일명 SXX_TXX_X)",
+            text=tr("cb_timelapse", "Timelapse(시간축 있음: 파일명 SXX_TXX_X)"),
             variable=self.tl_v,
             command=self._toggle_subset
         ).grid(row=3, column=0, columnspan=2,
                sticky="w", padx=8, pady=(4, 0))
 
         # ----- 채널 설정 -----
-        chf = tk.LabelFrame(self.root, text="채널 설정")
+        chf = tk.LabelFrame(self.root, text=tr("ch_group", "채널 설정"))
         chf.grid(row=4, column=0, columnspan=2,
                  sticky="we", padx=8, pady=(6, 6))
-        tk.Label(chf, text="총 채널 수").grid(row=0, column=0, sticky="e", padx=6)
+        tk.Label(chf, text=tr("ch_total", "총 채널 수")).grid(row=0, column=0, sticky="e", padx=6)
         cb_nc = ttk.Combobox(
             chf, textvariable=self.n_ch_v,
             values=["1", "2", "3", "4"], width=6, state="readonly"
@@ -1065,9 +1297,9 @@ class FluorIntensityApp:
         ch_bg_frame.grid_columnconfigure(1, weight=1)
 
         # 채널 설정
-        chf = tk.LabelFrame(ch_bg_frame, text="채널 설정")
+        chf = tk.LabelFrame(ch_bg_frame, text=tr("ch_group", "채널 설정"))
         chf.grid(row=0, column=0, sticky="nwe", padx=(0, 6))
-        tk.Label(chf, text="총 채널 수").grid(row=0, column=0, sticky="e", padx=6)
+        tk.Label(chf, text=tr("ch_total", "총 채널 수")).grid(row=0, column=0, sticky="e", padx=6)
         cb_nc = ttk.Combobox(
             chf, textvariable=self.n_ch_v,
             values=["1", "2", "3", "4"], width=6, state="readonly"
@@ -1081,25 +1313,25 @@ class FluorIntensityApp:
         self._build_channel_rows()
 
         # BG 옵션
-        bgf = tk.LabelFrame(ch_bg_frame, text="BG 옵션")
+        bgf = tk.LabelFrame(ch_bg_frame, text=tr("bg_group", "BG 옵션"))
         bgf.grid(row=0, column=1, sticky="nwe")
 
-        tk.Label(bgf, text="Scope").grid(row=0, column=0, sticky="e", padx=6, pady=4)
+        tk.Label(bgf, text=tr("bg_scope", "Scope")).grid(row=0, column=0, sticky="e", padx=6, pady=4)
         ttk.Combobox(
             bgf, textvariable=self.scope_v,
             values=["full", "roi_union"], width=10, state="readonly"
         ).grid(row=0, column=1, sticky="w")
 
-        tk.Label(bgf, text="Mode").grid(row=0, column=2, sticky="e", padx=6, pady=4)
+        tk.Label(bgf, text=tr("bg_mode", "Mode")).grid(row=0, column=2, sticky="e", padx=6, pady=4)
         ttk.Combobox(
             bgf, textvariable=self.bgmode_v,
             values=["percentile", "hist-mode"], width=12, state="readonly"
         ).grid(row=0, column=3, sticky="w")
 
-        tk.Label(bgf, text="percentile p(%)").grid(row=1, column=0, sticky="e", padx=6, pady=4)
+        tk.Label(bgf, text=tr("bg_percentile", "percentile p(%)")).grid(row=1, column=0, sticky="e", padx=6, pady=4)
         tk.Entry(bgf, textvariable=self.p_v, width=8).grid(row=1, column=1, sticky="w")
 
-        tk.Checkbutton(bgf, text="채널별 p", variable=self.per_ch_v).grid(
+        tk.Checkbutton(bgf, text=tr("per_channel_p", "채널별 p"), variable=self.per_ch_v).grid(
             row=1, column=2, sticky="w", padx=4
         )
 
@@ -1109,63 +1341,63 @@ class FluorIntensityApp:
             tk.Label(row_p, text=f"ch{i}").pack(side="left")
             tk.Entry(row_p, textvariable=self.ch_p_vars[i], width=4).pack(side="left", padx=(0, 4))
 
-        tk.Checkbutton(bgf, text="음수 clip", variable=self.clip_v).grid(
+        tk.Checkbutton(bgf, text=tr("clip_neg", "음수 clip"), variable=self.clip_v).grid(
             row=2, column=0, sticky="w", padx=6, pady=(2, 4)
         )
 
-        tk.Label(bgf, text="bg_stride").grid(row=2, column=1, sticky="e", padx=6, pady=(2, 4))
+        tk.Label(bgf, text=tr("bg_stride", "bg_stride")).grid(row=2, column=1, sticky="e", padx=6, pady=(2, 4))
         tk.Entry(bgf, textvariable=self.bg_stride_v, width=6).grid(
             row=2, column=2, sticky="w", pady=(2, 4)
         )
 
         # ----- 픽셀 크기 -----
-        tk.Label(self.root, text="픽셀크기 (µm/px) — 스케일바용").grid(
+        tk.Label(self.root, text=tr("px_um", "픽셀크기 (µm/px) — 스케일바용")).grid(
             row=6, column=0, sticky="w", **pad
         )
         tk.Entry(self.root, textvariable=self.px_v,
                  width=12).grid(row=6, column=1, sticky="w", **pad)
 
         # ----- 출력 그룹 -----
-        outf = tk.LabelFrame(self.root, text="출력 그룹")
+        outf = tk.LabelFrame(self.root, text=tr("out_group", "출력 그룹"))
         outf.grid(row=7, column=0, columnspan=2,
                   sticky="we", padx=8, pady=(6, 6))
-        tk.Checkbutton(outf, text="XLS/CSV",
+        tk.Checkbutton(outf, text=tr("out_xls", "XLS/CSV"),
                        variable=self.out_xls_v).grid(
             row=0, column=0, sticky="w", padx=8, pady=4
         )
-        tk.Checkbutton(outf, text="TIF (BG-correct / ROI masking)",
+        tk.Checkbutton(outf, text=tr("out_tif", "TIF (BG-correct / ROI masking)"),
                        variable=self.out_tif_v).grid(
             row=0, column=1, sticky="w", padx=8, pady=4
         )
-        tk.Checkbutton(outf, text="PNG",
+        tk.Checkbutton(outf, text=tr("out_png", "PNG"),
                        variable=self.out_png_v,
                        command=self._toggle_png_group).grid(
             row=0, column=2, sticky="w", padx=8, pady=4
         )
-        tk.Checkbutton(outf, text="TIF ROI 외부 0 마스킹",
+        tk.Checkbutton(outf, text=tr("out_tif_mask", "TIF ROI 외부 0 마스킹"),
                        variable=self.tif_mask_v).grid(
             row=1, column=0, sticky="w", padx=8, pady=4
         )
-        tk.Checkbutton(outf, text="원본 Crop TIF 저장",
+        tk.Checkbutton(outf, text=tr("out_raw_crop", "원본 Crop TIF 저장"),
                        variable=self.save_raw_crop_tif_v).grid(
             row=1, column=1, sticky="w", padx=8, pady=4
         )
 
         # ----- PNG 옵션 -----
-        pngf = tk.LabelFrame(self.root, text="PNG 옵션")
+        pngf = tk.LabelFrame(self.root, text=tr("png_opts", "PNG 옵션"))
         pngf.grid(row=8, column=0, columnspan=2,
                   sticky="we", padx=8, pady=(4, 6))
 
         # Full
-        self.png_full_box = tk.LabelFrame(pngf, text="Full image 저장")
+        self.png_full_box = tk.LabelFrame(pngf, text=tr("png_full", "Full image 저장"))
         self.png_full_box.grid(row=0, column=0, sticky="we", padx=6, pady=6)
-        tk.Checkbutton(self.png_full_box, text="활성화",
+        tk.Checkbutton(self.png_full_box, text=tr("btn_enable", "활성화"),
                        variable=self.full_on_v,
                        command=self._toggle_full_box).grid(
             row=0, column=0, sticky="w", padx=6
         )
         self.chk_full_mask = tk.Checkbutton(
-            self.png_full_box, text="ROI 외부 마스킹",
+            self.png_full_box, text=tr("mask_out", "ROI 외부 마스킹"),
             variable=self.full_mask_v
         )
         self.chk_full_mask.grid(row=0, column=1, sticky="w", padx=6)
@@ -1174,19 +1406,19 @@ class FluorIntensityApp:
         self.full_inner.grid(row=1, column=0, columnspan=4,
                              sticky="we", padx=2)
 
-        tk.Checkbutton(self.full_inner, text="Scale bar 추가",
+        tk.Checkbutton(self.full_inner, text=tr("sb_add", "Scale bar 추가"),
                        variable=self.full_sb_v,
                        command=self._toggle_full_box).grid(
             row=0, column=0, sticky="w", padx=6
         )
-        tk.Label(self.full_inner, text="길이(µm):").grid(
+        tk.Label(self.full_inner, text=tr("sb_len", "길이(µm):")).grid(
             row=0, column=1, sticky="e")
         self.e_full_sb_um = tk.Entry(
             self.full_inner, textvariable=self.full_sb_um_v,
             width=6
         )
         self.e_full_sb_um.grid(row=0, column=2, sticky="w")
-        tk.Label(self.full_inner, text="위치:").grid(
+        tk.Label(self.full_inner, text=tr("sb_pos", "위치:")).grid(
             row=0, column=3, sticky="e")
         self.cb_full_sb_anchor = ttk.Combobox(
             self.full_inner,
@@ -1194,7 +1426,7 @@ class FluorIntensityApp:
             values=SB_ANCHORS, width=4, state="readonly"
         )
         self.cb_full_sb_anchor.grid(row=0, column=4, sticky="w")
-        tk.Label(self.full_inner, text="글자크기:").grid(
+        tk.Label(self.full_inner, text=tr("sb_font", "글자크기:")).grid(
             row=0, column=5, sticky="e")
         self.e_full_sb_font = tk.Entry(
             self.full_inner, textvariable=self.full_sb_font_v,
@@ -1202,12 +1434,12 @@ class FluorIntensityApp:
         )
         self.e_full_sb_font.grid(row=0, column=6, sticky="w")
 
-        tk.Checkbutton(self.full_inner, text="Color map 재설정",
+        tk.Checkbutton(self.full_inner, text=tr("cmap_reset", "Color map 재설정"),
                        variable=self.full_cmap_on_v,
                        command=self._toggle_full_box).grid(
             row=1, column=0, sticky="w", padx=6
         )
-        tk.Label(self.full_inner, text="Color map:").grid(
+        tk.Label(self.full_inner, text=tr("cmap_label", "Color map:")).grid(
             row=1, column=1, sticky="e"
         )
         self.cb_full_cmap = ttk.Combobox(
@@ -1215,14 +1447,14 @@ class FluorIntensityApp:
             values=CMAP_CHOICES, width=10, state="readonly"
         )
         self.cb_full_cmap.grid(row=1, column=2, sticky="w")
-        tk.Label(self.full_inner, text="최소값:").grid(
+        tk.Label(self.full_inner, text=tr("cmin", "최소값:")).grid(
             row=1, column=3, sticky="e")
         self.e_full_cmin = tk.Entry(
             self.full_inner, textvariable=self.full_cmin_v,
             width=8
         )
         self.e_full_cmin.grid(row=1, column=4, sticky="w")
-        tk.Label(self.full_inner, text="최대값:").grid(
+        tk.Label(self.full_inner, text=tr("cmax", "최대값:")).grid(
             row=1, column=5, sticky="e")
         self.e_full_cmax = tk.Entry(
             self.full_inner, textvariable=self.full_cmax_v,
@@ -1230,12 +1462,12 @@ class FluorIntensityApp:
         )
         self.e_full_cmax.grid(row=1, column=6, sticky="w")
         self.cb_full_cbar = tk.Checkbutton(
-            self.full_inner, text="Color bar 표시",
+            self.full_inner, text=tr("show_cbar", "Color bar 표시"),
             variable=self.full_cbar_v
         )
         self.cb_full_cbar.grid(row=1, column=7, sticky="w", padx=6)
 
-        tk.Label(self.full_inner, text="PNG DPI:").grid(
+        tk.Label(self.full_inner, text=tr("png_dpi", "PNG DPI:")).grid(
             row=2, column=0, sticky="e", padx=6)
         self.e_full_dpi = tk.Entry(
             self.full_inner, textvariable=self.full_dpi_v,
@@ -1244,16 +1476,16 @@ class FluorIntensityApp:
         self.e_full_dpi.grid(row=2, column=1, sticky="w")
 
         # Crop
-        self.png_crop_box = tk.LabelFrame(pngf, text="Crop image 저장")
+        self.png_crop_box = tk.LabelFrame(pngf, text=tr("png_crop", "Crop image 저장"))
         self.png_crop_box.grid(row=0, column=1, sticky="we",
                                padx=6, pady=6)
-        tk.Checkbutton(self.png_crop_box, text="활성화",
+        tk.Checkbutton(self.png_crop_box, text=tr("btn_enable", "활성화"),
                        variable=self.crop_on_v,
                        command=self._toggle_crop_box).grid(
             row=0, column=0, sticky="w", padx=6
         )
         self.chk_crop_mask = tk.Checkbutton(
-            self.png_crop_box, text="ROI 외부 마스킹",
+            self.png_crop_box, text=tr("mask_out", "ROI 외부 마스킹"),
             variable=self.crop_mask_v
         )
         self.chk_crop_mask.grid(row=0, column=1,
@@ -1263,19 +1495,19 @@ class FluorIntensityApp:
         self.crop_inner.grid(row=1, column=0, columnspan=4,
                              sticky="we", padx=2)
 
-        tk.Checkbutton(self.crop_inner, text="Scale bar 추가",
+        tk.Checkbutton(self.crop_inner, text=tr("sb_add", "Scale bar 추가"),
                        variable=self.crop_sb_v,
                        command=self._toggle_crop_box).grid(
             row=0, column=0, sticky="w", padx=6
         )
-        tk.Label(self.crop_inner, text="길이(µm):").grid(
+        tk.Label(self.crop_inner, text=tr("sb_len", "길이(µm):")).grid(
             row=0, column=1, sticky="e")
         self.e_crop_sb_um = tk.Entry(
             self.crop_inner, textvariable=self.crop_sb_um_v,
             width=6
         )
         self.e_crop_sb_um.grid(row=0, column=2, sticky="w")
-        tk.Label(self.crop_inner, text="위치:").grid(
+        tk.Label(self.crop_inner, text=tr("sb_pos", "위치:")).grid(
             row=0, column=3, sticky="e")
         self.cb_crop_sb_anchor = ttk.Combobox(
             self.crop_inner,
@@ -1283,7 +1515,7 @@ class FluorIntensityApp:
             values=SB_ANCHORS, width=4, state="readonly"
         )
         self.cb_crop_sb_anchor.grid(row=0, column=4, sticky="w")
-        tk.Label(self.crop_inner, text="글자크기:").grid(
+        tk.Label(self.crop_inner, text=tr("sb_font", "글자크기:")).grid(
             row=0, column=5, sticky="e")
         self.e_crop_sb_font = tk.Entry(
             self.crop_inner, textvariable=self.crop_sb_font_v,
@@ -1291,12 +1523,12 @@ class FluorIntensityApp:
         )
         self.e_crop_sb_font.grid(row=0, column=6, sticky="w")
 
-        tk.Checkbutton(self.crop_inner, text="Color map 재설정",
+        tk.Checkbutton(self.crop_inner, text=tr("cmap_reset", "Color map 재설정"),
                        variable=self.crop_cmap_on_v,
                        command=self._toggle_crop_box).grid(
             row=1, column=0, sticky="w", padx=6
         )
-        tk.Label(self.crop_inner, text="Color map:").grid(
+        tk.Label(self.crop_inner, text=tr("cmap_label", "Color map:")).grid(
             row=1, column=1, sticky="e")
         self.cb_crop_cmap = ttk.Combobox(
             self.crop_inner,
@@ -1305,14 +1537,14 @@ class FluorIntensityApp:
             state="readonly"
         )
         self.cb_crop_cmap.grid(row=1, column=2, sticky="w")
-        tk.Label(self.crop_inner, text="최소값:").grid(
+        tk.Label(self.crop_inner, text=tr("cmin", "최소값:")).grid(
             row=1, column=3, sticky="e")
         self.e_crop_cmin = tk.Entry(
             self.crop_inner, textvariable=self.crop_cmin_v,
             width=8
         )
         self.e_crop_cmin.grid(row=1, column=4, sticky="w")
-        tk.Label(self.crop_inner, text="최대값:").grid(
+        tk.Label(self.crop_inner, text=tr("cmax", "최대값:")).grid(
             row=1, column=5, sticky="e")
         self.e_crop_cmax = tk.Entry(
             self.crop_inner, textvariable=self.crop_cmax_v,
@@ -1320,28 +1552,28 @@ class FluorIntensityApp:
         )
         self.e_crop_cmax.grid(row=1, column=6, sticky="w")
         self.cb_crop_cbar = tk.Checkbutton(
-            self.crop_inner, text="Color bar 표시",
+            self.crop_inner, text=tr("show_cbar", "Color bar 표시"),
             variable=self.crop_cbar_v
         )
         self.cb_crop_cbar.grid(row=1, column=7, sticky="w", padx=6)
 
         # PNG/TIF 공통
         self.png_misc_box = tk.LabelFrame(
-            pngf, text="PNG/TIF 공통 자동 스케일"
+            pngf, text=tr("png_tif_misc", "PNG/TIF 공통 자동 스케일")
         )
         self.png_misc_box.grid(row=1, column=0, columnspan=2,
                                sticky="we", padx=6, pady=(0, 6))
-        tk.Label(self.png_misc_box, text="PNG DPI:").grid(
+        tk.Label(self.png_misc_box, text=tr("png_dpi", "PNG DPI:")).grid(
             row=0, column=0, sticky="e", padx=6)
         tk.Entry(self.png_misc_box, textvariable=self.png_dpi_v,
                  width=6).grid(row=0, column=1, sticky="w")
         tk.Checkbutton(
             self.png_misc_box,
-            text="고정 crop 픽셀 크기 사용",
+            text=tr("fixed_crop", "고정 crop 픽셀 크기 사용"),
             variable=self.fixed_crop_v,
             command=self._toggle_crop_box
         ).grid(row=0, column=2, sticky="w", padx=8)
-        tk.Label(self.png_misc_box, text="WxH(px):").grid(
+        tk.Label(self.png_misc_box, text=tr("wxh", "WxH(px):")).grid(
             row=0, column=3, sticky="e")
         self.e_cw = tk.Entry(
             self.png_misc_box, textvariable=self.crop_w_v,
@@ -1357,7 +1589,7 @@ class FluorIntensityApp:
         self.e_ch.grid(row=0, column=6, sticky="w")
 
         tk.Label(self.png_misc_box,
-                 text="Auto clip p_low / p_high (%)").grid(
+                 text=tr("auto_clip", "Auto clip p_low / p_high (%)")).grid(
             row=1, column=0, sticky="e", padx=6
         )
         tk.Entry(self.png_misc_box, textvariable=self.auto_lo_v,
@@ -1368,29 +1600,29 @@ class FluorIntensityApp:
                  width=6).grid(row=1, column=3, sticky="w")
 
         # ----- 부분 추출 -----
-        subf = tk.LabelFrame(self.root, text="부분 추출")
+        subf = tk.LabelFrame(self.root, text=tr("subset_group", "부분 추출"))
         subf.grid(row=9, column=0, columnspan=2,
                   sticky="we", padx=8, pady=(6, 6))
-        tk.Checkbutton(subf, text="부분 추출 활성화",
+        tk.Checkbutton(subf, text=tr("subset_on", "부분 추출 활성화"),
                        variable=self.subset_on_v,
                        command=self._toggle_subset).grid(
             row=0, column=0, sticky="w", padx=8, pady=6
         )
-        tk.Label(subf, text="Stage(필수)").grid(
+        tk.Label(subf, text=tr("subset_stage", "Stage(필수)")).grid(
             row=1, column=0, sticky="e", padx=8)
         self.e_stage = tk.Entry(
             subf, textvariable=self.subset_stage_v,
             width=10, state=tk.DISABLED
         )
         self.e_stage.grid(row=1, column=1, sticky="w")
-        tk.Label(subf, text="Time(선택; timelapse)").grid(
+        tk.Label(subf, text=tr("subset_time", "Time(선택; timelapse)")).grid(
             row=1, column=2, sticky="e", padx=8)
         self.e_time = tk.Entry(
             subf, textvariable=self.subset_time_v,
             width=10, state=tk.DISABLED
         )
         self.e_time.grid(row=1, column=3, sticky="w")
-        tk.Label(subf, text="ROI(선택)").grid(
+        tk.Label(subf, text=tr("subset_roi", "ROI(선택)")).grid(
             row=1, column=4, sticky="e", padx=8)
         self.e_roi = tk.Entry(
             subf, textvariable=self.subset_roi_v,
@@ -1399,15 +1631,15 @@ class FluorIntensityApp:
         self.e_roi.grid(row=1, column=5, sticky="w")
 
         # ----- 병렬 처리 -----
-        par_box = tk.LabelFrame(self.root, text="병렬 처리")
+        par_box = tk.LabelFrame(self.root, text=tr("par_group", "병렬 처리"))
         par_box.grid(row=10, column=0, columnspan=2,
                      sticky="we", padx=8, pady=(4, 6))
         tk.Checkbutton(
             par_box,
-            text="ProcessPoolExecutor 사용",
+            text=tr("par_use_pool", "ProcessPoolExecutor 사용"),
             variable=self.proc_parallel_v
         ).grid(row=0, column=0, sticky="w", padx=8)
-        tk.Label(par_box, text="프로세스 개수 (0=자동)").grid(
+        tk.Label(par_box, text=tr("par_workers", "프로세스 개수 (0=자동)")).grid(
             row=0, column=1, sticky="e", padx=8)
         tk.Entry(par_box, textvariable=self.proc_workers_v,
                  width=6).grid(row=0, column=2, sticky="w")
@@ -1416,17 +1648,17 @@ class FluorIntensityApp:
         btn_frame = tk.Frame(self.root)
         btn_frame.grid(row=11, column=0, columnspan=2, pady=(4, 4))
         self.btn_run = tk.Button(
-            btn_frame, text="실행", width=12,
+            btn_frame, text=tr("btn_run", "실행"), width=12,
             command=self.on_run
         )
         self.btn_run.pack(side="left", padx=6)
         self.btn_cancel = tk.Button(
-            btn_frame, text="중단", width=12,
+            btn_frame, text=tr("btn_cancel", "중단"), width=12,
             command=self.on_cancel, state=tk.DISABLED
         )
         self.btn_cancel.pack(side="left", padx=6)
         self.btn_exit = tk.Button(
-            btn_frame, text="종료", width=12,
+            btn_frame, text=tr("btn_exit", "종료"), width=12,
             command=self.on_close
         )
         self.btn_exit.pack(side="left", padx=6)
@@ -1449,12 +1681,12 @@ class FluorIntensityApp:
                              columnspan=2, sticky="w")
         self.lab_eta = tk.Label(
             prog_frame,
-            text="경과: 00:00:00 | 남은: --:--:--"
+            text=tr("eta_init", "경과: 00:00:00 | 남은: --:--:--")
         )
         self.lab_eta.grid(row=2, column=0,
                           columnspan=2, sticky="w")
 
-        tk.Label(self.root, text="Log").grid(
+        tk.Label(self.root, text=t("log_label", "Log")).grid(
             row=13, column=0, sticky="nw", padx=8)
         self.log_text = scrolledtext.ScrolledText(
             self.root, height=12, width=95
@@ -1477,8 +1709,8 @@ class FluorIntensityApp:
 
     # ---------- UI helpers ----------
 
-    def _browse_dir(self, var):
-        p = filedialog.askdirectory()
+    def _browse_dir(self, var, title=None):
+        p = filedialog.askdirectory(title=(title or ""))
         if p:
             var.set(p)
 
@@ -1491,9 +1723,9 @@ class FluorIntensityApp:
             nC = int(self.n_ch_v.get())
         except:
             nC = 1
-        tk.Label(self.ch_rows_frame, text="채널 #").grid(
+        tk.Label(self.ch_rows_frame, text=t("ch_num_col", "채널 #")).grid(
             row=0, column=0, padx=6, sticky="w")
-        tk.Label(self.ch_rows_frame, text="컬러").grid(
+        tk.Label(self.ch_rows_frame, text=t("ch_color_col", "컬러")).grid(
             row=0, column=1, padx=6, sticky="w")
         for i in range(nC):
             num_v = tk.StringVar(value=str(i + 1))
@@ -1587,7 +1819,7 @@ class FluorIntensityApp:
 
     def on_run(self):
         if self.running:
-            print("[알림] 이미 실행 중입니다.")
+            print(t("msg_running", "[알림] 이미 실행 중입니다."))
             return
 
         cfg = self._validate_and_collect()
@@ -1606,13 +1838,13 @@ class FluorIntensityApp:
         self.progress_done = 0
         self.progress_total = 1
         self.progress_var.set(0.0)
-        self.lab_status.config(text="초기화 중...")
-        self.lab_eta.config(text="경과: 00:00:00 | 남은: --:--:--")
+        self.lab_status.config(text=t("init_status", "초기화 중..."))
+        self.lab_eta.config(text=t("eta_init", "경과: 00:00:00 | 남은: --:--:--"))
 
         self._set_all_inputs_state(tk.DISABLED)
         self.btn_cancel.configure(state=tk.NORMAL)
 
-        print(f"[정보] Fluor Intensity Builder 실행 시작")
+        print(t("log_start", "[정보] Fluor Intensity Builder 실행 시작"))
         print(f"img_dir={cfg['img_dir']}")
         print(f"roi_dir={cfg['roi_dir']}")
         print(f"out_root={cfg['out_root']}")
@@ -1623,13 +1855,13 @@ class FluorIntensityApp:
     def on_cancel(self):
         if self.running:
             self.cancel_requested = True
-            print("[알림] 중단 요청됨. 현재 작업 마무리 후 종료합니다.")
+            print(t("msg_cancel_req", "[알림] 중단 요청됨. 현재 작업 마무리 후 종료합니다."))
 
     def on_close(self):
         if self.running:
             if not messagebox.askyesno(
-                "종료 확인",
-                "현재 작업이 진행 중입니다. 정말 종료할까요?"
+                t("confirm_exit_title", "종료 확인"),
+                t("confirm_exit_body", "현재 작업이 진행 중입니다. 정말 종료할까요?")
             ):
                 return
         self.root.destroy()
@@ -1642,10 +1874,10 @@ class FluorIntensityApp:
         out = self.out_v.get().strip()
 
         if not img or not os.path.isdir(img):
-            messagebox.showerror("오류", "유효한 이미지 경로를 선택하세요.")
+            messagebox.showerror(t("err_title", "오류"), t("err_img", "유효한 이미지 경로를 선택하세요."))
             return None
         if not roi or not os.path.isdir(roi):
-            messagebox.showerror("오류", "유효한 ROI 경로를 선택하세요.")
+            messagebox.showerror(t("err_title", "오류"), t("err_roi", "유효한 ROI 경로를 선택하세요."))
             return None
         if not out:
             out = os.path.join(img, "RES_INT")
@@ -1655,7 +1887,7 @@ class FluorIntensityApp:
             nC = int(self.n_ch_v.get())
             assert 1 <= nC <= 4
         except:
-            messagebox.showerror("오류", "채널 수는 1~4")
+            messagebox.showerror(t("err_title", "오류"), t("err_ch_count", "채널 수는 1~4"))
             return None
 
         chs = []
@@ -1666,15 +1898,15 @@ class FluorIntensityApp:
                 assert 0 <= cnum <= 4
             except:
                 messagebox.showerror(
-                    "오류",
-                    f"{i+1}번째 채널 번호가 올바르지 않습니다 (0~4)."
+                    t("err_title", "오류"),
+                    t("err_ch_num", "{idx}번째 채널 번호가 올바르지 않습니다 (0~4).").format(idx=i+1)
                 )
                 return None
             col = self.ch_color_vars[i].get()
             chs.append(cnum)
             ch_color_map[cnum] = col
         if len(set(chs)) != len(chs):
-            messagebox.showerror("오류", "채널 번호가 중복되었습니다.")
+            messagebox.showerror(t("err_title", "오류"), t("err_ch_dup", "채널 번호가 중복되었습니다."))
             return None
 
         # BG
@@ -1682,7 +1914,7 @@ class FluorIntensityApp:
             p = float(self.p_v.get())
             assert 0.0 <= p <= 10.0
         except:
-            messagebox.showerror("오류", "percentile p는 0~10")
+            messagebox.showerror(t("err_title", "오류"), t("err_percentile", "percentile p는 0~10"))
             return None
 
         ch_p_map = {i: p for i in [1, 2, 3, 4]}
@@ -1693,7 +1925,7 @@ class FluorIntensityApp:
                     assert 0.0 <= ch_p_map[i] <= 10.0
             except:
                 messagebox.showerror(
-                    "오류", "채널별 p는 0~10"
+                    t("err_title", "오류"), t("err_per_channel", "채널별 p는 0~10")
                 )
                 return None
 
@@ -1702,7 +1934,7 @@ class FluorIntensityApp:
             assert 1 <= bg_stride <= 100
         except:
             messagebox.showerror(
-                "오류", "bg_stride는 1~100 정수"
+                t("err_title", "오류"), t("err_bg_stride", "bg_stride는 1~100 정수")
             )
             return None
 
@@ -1714,7 +1946,7 @@ class FluorIntensityApp:
                 assert 1e-4 <= px_um <= 100.0
             except:
                 messagebox.showerror(
-                    "오류", "픽셀크기(µm/px) 입력 오류"
+                    t("err_title", "오류"), t("err_px", "픽셀크기(µm/px) 입력 오류")
                 )
                 return None
 
@@ -1740,7 +1972,7 @@ class FluorIntensityApp:
                 assert 32 <= cw <= 8000 and 32 <= chh <= 8000
             except:
                 messagebox.showerror(
-                    "오류", "crop 픽셀 크기(32~8000)"
+                    t("err_title", "오류"), t("err_crop", "crop 픽셀 크기(32~8000)")
                 )
                 return None
 
@@ -1753,7 +1985,7 @@ class FluorIntensityApp:
                 assert ss_stage >= 0
             except:
                 messagebox.showerror(
-                    "오류", "Stage는 정수"
+                    t("err_title", "오류"), t("err_stage", "Stage는 정수")
                 )
                 return None
             if self.tl_v.get() and self.subset_time_v.get().strip():
@@ -1762,7 +1994,7 @@ class FluorIntensityApp:
                     assert ss_time >= 0
                 except:
                     messagebox.showerror(
-                        "오류", "Timepoint는 정수"
+                        t("err_title", "오류"), t("err_time", "Timepoint는 정수")
                     )
                     return None
             if self.subset_roi_v.get().strip():
@@ -1771,7 +2003,7 @@ class FluorIntensityApp:
                     assert ss_roi >= 1
                 except:
                     messagebox.showerror(
-                        "오류", "ROI는 1 이상 정수"
+                        t("err_title", "오류"), t("err_roi_num", "ROI는 1 이상 정수")
                     )
                     return None
 
@@ -1782,8 +2014,8 @@ class FluorIntensityApp:
             assert 0.0 <= auto_lo < auto_hi <= 100.0
         except:
             messagebox.showerror(
-                "오류",
-                "Auto clip p_low/p_high는 0–100, p_low < p_high"
+                t("err_title", "오류"),
+                t("err_auto_clip", "Auto clip p_low/p_high는 0~100, p_low < p_high")
             )
             return None
 
@@ -1793,7 +2025,7 @@ class FluorIntensityApp:
             assert 0 <= workers <= 64
         except:
             messagebox.showerror(
-                "오류", "프로세스 개수는 0~64 정수"
+                t("err_title", "오류"), t("err_workers", "프로세스 개수는 0~64 정수")
             )
             return None
 
@@ -1859,6 +2091,7 @@ class FluorIntensityApp:
 
     def _run_pipeline(self, cfg):
         try:
+            translate = t
             img_dir = cfg["img_dir"]
             roi_dir = cfg["roi_dir"]
             out_root = ensure_dir(cfg["out_root"])
@@ -1867,7 +2100,7 @@ class FluorIntensityApp:
             files = list_tifs(img_dir)
             keymap = build_keymap(files, timelapse=timelapse)
             if not keymap:
-                print("해석 가능한 이미지가 없습니다.")
+                print(translate("log_no_img", "해석 가능한 이미지가 없습니다."))
                 return
 
             # 부분추출
@@ -1880,7 +2113,7 @@ class FluorIntensityApp:
                     keymap = {k: v for k, v in keymap.items()
                               if (k[0] == s_code and k[1] == t_code)}
                 if not keymap:
-                    print(f"[부분추출] 조건(Stage={s_code})에 맞는 키가 없습니다.")
+                    print(translate("log_subset_none", "[부분추출] 조건(Stage={stage})에 맞는 파일이 없습니다.").format(stage=s_code))
                     return
 
             out_xls = cfg["out_xls"]
@@ -1894,21 +2127,21 @@ class FluorIntensityApp:
 
             # 전체 스텝
             total_steps = 0
-            for (s, t) in keymap.keys():
-                n_roi = count_rois_fast(roi_dir, s, t, timelapse)
+            for (s, t_code) in keymap.keys():
+                n_roi = count_rois_fast(roi_dir, s, t_code, timelapse)
                 total_steps += (n_roi if n_roi > 0 else 1)
             if total_steps <= 0:
                 total_steps = 1
             self._set_progress_total(total_steps)
-            print(f"[정보] 총 작업 단위(ROI/키): {total_steps}")
+            print(translate("log_steps", "[정보] 총 작업 단위(ROI/파일): {steps}").format(steps=total_steps))
 
             # 태스크
             tasks = []
-            for (s, t), chmap in keymap.items():
-                stid = f"{s}_{t}" if (timelapse and t is not None) else s
+            for (s, t_code), chmap in keymap.items():
+                stid = f"{s}_{t_code}" if (timelapse and t_code is not None) else s
                 task = {
                     "s": s,
-                    "t": t,
+                    "t": t_code,
                     "stid": stid,
                     "chmap": chmap,
                     "chs_to_quant": cfg["channels_to_quant"],
@@ -1967,6 +2200,7 @@ class FluorIntensityApp:
                     "auto_hi": cfg["auto_clip_hi"],
                     "ch_color_map": cfg["ch_color_map"],
                     "save_raw_crop_tif": cfg["save_raw_crop_tif"],
+                    "lang": LANG_CURRENT,
                 }
                 tasks.append(task)
 
@@ -1985,7 +2219,10 @@ class FluorIntensityApp:
                         res = fu.result()
                         rows_all.extend(res["rows"])
                         steps = int(res.get("steps", 1))
-                        self._progress_step(steps, msg=f"{fut2task[fu]['stid']} 완료")
+                        self._progress_step(
+                            steps,
+                            msg=translate("status_done", "{item} 완료").format(item=fut2task[fu]["stid"])
+                        )
                         for line in res.get("logs", []):
                             print(line)
             else:
@@ -1995,21 +2232,24 @@ class FluorIntensityApp:
                     res = _process_key_task(task)
                     rows_all.extend(res["rows"])
                     steps = int(res.get("steps", 1))
-                    self._progress_step(steps, msg=f"{task['stid']} 진행")
+                    self._progress_step(
+                        steps,
+                        msg=translate("status_progress", "{item} 진행").format(item=task["stid"])
+                    )
                     for line in res.get("logs", []):
                         print(line)
 
             if self.cancel_requested:
-                print("[알림] 사용자가 작업을 중단했습니다.")
+                print(translate("log_cancel", "[알림] 사용자 요청으로 작업을 중단합니다."))
             else:
                 if cfg["out_xls"] and rows_all:
                     try:
                         save_excel(rows_all, keymap, xls_dir)
                     except Exception as e:
-                        print("[주의] XLS 저장 중 오류:", e)
+                        print(translate("log_xls_warn", "[주의] XLS 저장 중 오류: {err}").format(err=e))
                 elif cfg["out_xls"] and not rows_all:
-                    print("[주의] ROI가 없어 정량 테이블이 생성되지 않았습니다.")
-                print("[완료] 모든 처리가 종료되었습니다.")
+                    print(translate("log_no_roi_table", "[주의] ROI가 없어 정량 테이블이 생성되지 않았습니다."))
+                print(translate("log_done", "[완료] 모든 처리가 종료되었습니다."))
 
         except Exception as e:
             print("[치명적 오류]", e)
@@ -2043,7 +2283,7 @@ class FluorIntensityApp:
     def _update_eta(self):
         if not self.start_ts:
             self.lab_eta.config(
-                text="경과: 00:00:00 | 남은: --:--:--"
+                text=t("eta_init", "경과: 00:00:00 | 남은: --:--:--")
             )
             return
         done = self.progress_done
@@ -2059,12 +2299,21 @@ class FluorIntensityApp:
             rh = rem // 3600
             rm = (rem % 3600) // 60
             rs = rem % 60
+            elapsed_txt = f"{h:02d}:{m:02d}:{s:02d}"
+            eta_txt = f"{rh:02d}:{rm:02d}:{rs:02d}"
             self.lab_eta.config(
-                text=f"경과: {h:02d}:{m:02d}:{s:02d} | 남은: {rh:02d}:{rm:02d}:{rs:02d}"
+                text=t(
+                    "eta_fmt",
+                    "경과: {elapsed} | 남은: {eta}"
+                ).format(elapsed=elapsed_txt, eta=eta_txt)
             )
         else:
+            elapsed_txt = f"{h:02d}:{m:02d}:{s:02d}"
             self.lab_eta.config(
-                text=f"경과: {h:02d}:{m:02d}:{s:02d} | 남은: --:--:--"
+                text=t(
+                    "eta_fmt",
+                    "경과: {elapsed} | 남은: {eta}"
+                ).format(elapsed=elapsed_txt, eta="--:--:--")
             )
 
     def _run_finished(self):
