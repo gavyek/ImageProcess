@@ -2,6 +2,22 @@
 setlocal
 pushd "%~dp0"
 
+:lang_menu
+cls
+echo Select language / %%%%C5%%%%%%%%N6%%%%%%%%%%C1%%%%:
+echo ==============================
+echo  1. Korean
+echo  2. English
+echo ==============================
+set "lang_arg="
+set "lang_choice="
+set /p "lang_choice=Choose language (1-2): "
+if /I "%lang_choice%"=="1" set "lang_arg=" & goto menu
+if /I "%lang_choice%"=="2" set "lang_arg=-mode EN" & goto menu
+echo Invalid selection. Try again.
+pause
+goto lang_menu
+
 :menu
 cls
 echo ==============================
@@ -51,7 +67,7 @@ goto menu
 :run
 cls
 echo Running: %~1
-python "%~1"
+python "%~1" %lang_arg%
 call :ask_again
 exit /b
 
