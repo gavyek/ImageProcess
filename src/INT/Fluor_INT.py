@@ -1873,14 +1873,16 @@ class FluorIntensityApp:
         roi = self.roi_v.get().strip()
         out = self.out_v.get().strip()
 
+        if not roi:
+            roi = os.path.join(img, "roi")
         if not img or not os.path.isdir(img):
             messagebox.showerror(t("err_title", "오류"), t("err_img", "유효한 이미지 경로를 선택하세요."))
             return None
-        if not roi or not os.path.isdir(roi):
+        if not os.path.isdir(roi):
             messagebox.showerror(t("err_title", "오류"), t("err_roi", "유효한 ROI 경로를 선택하세요."))
             return None
         if not out:
-            out = os.path.join(img, "RES_INT")
+            out = os.path.join(img, "RES")
 
         # 채널
         try:

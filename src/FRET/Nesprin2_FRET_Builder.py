@@ -1061,10 +1061,12 @@ def gui_get_params(lang=None):
     def on_ok():
         img=img_v.get().strip()
         roi=roi_v.get().strip()
+        if not roi:
+            roi=os.path.join(img,"roi")
         if not img or not os.path.isdir(img):
             messagebox.showerror(t("err_title","오류", lang=lang), t("err_invalid_img","유효한 이미지 경로를 선택하세요.", lang=lang))
             return
-        if not roi or not os.path.isdir(roi):
+        if not os.path.isdir(roi):
             messagebox.showerror(t("err_title","오류", lang=lang), t("err_invalid_roi","유효한 ROI 경로를 선택하세요.", lang=lang))
             return
         try:
@@ -1328,7 +1330,7 @@ def make_name(s, t, timelapse: bool):
 
 def run_pipeline(p):
     img_dir=p["img_dir"]; roi_dir=p["roi_dir"]
-    out_root=p["out_root"].strip() or os.path.join(img_dir,"RES_Nesprin2")
+    out_root=p["out_root"].strip() or os.path.join(img_dir,"RES")
     timelapse=bool(p["timelapse"])
 
     donor_ch=int(p["donor_ch"])

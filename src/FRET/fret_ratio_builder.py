@@ -788,8 +788,10 @@ class App(tk.Tk):
     # ---------- 실행 ----------
     def _collect_params(self):
         img=self.img_v.get().strip(); roi=self.roi_v.get().strip()
+        if not roi:
+            roi=os.path.join(img,"roi")
         if not img or not os.path.isdir(img): raise ValueError(t("err_invalid_img","Select a valid FRET images folder.", lang=self.lang))
-        if not roi or not os.path.isdir(roi): raise ValueError(t("err_invalid_roi","Select a valid ROI folder.", lang=self.lang))
+        if not os.path.isdir(roi): raise ValueError(t("err_invalid_roi","Select a valid ROI folder.", lang=self.lang))
         try:
             p=float(self.p_v.get()); assert 0.0<=p<=10.0
             eps=float(self.eps_v.get()); assert 0.0<=eps<=10.0
