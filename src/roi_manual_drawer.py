@@ -324,7 +324,12 @@ def polygon_area(xy):
     x = xy[:, 0]; y = xy[:, 1]
     return 0.5 * np.abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
 
-def segment_inside_polygon(img, poly, thresh_p=90.0, min_area=40, tolerance=1.0):
+def segment_inside_polygon(img, poly, thr_param=90.0, min_area=40, tolerance=1.0,
+                           mode: str = "percentile"):
+    """
+    mode = 'percentile' : thr_param = percentile p (예: 70 → 70th percentile)
+    mode = 'bnd'        : thr_param = alpha (thr = mean + alpha*std)
+    """
     H, W = img.shape[:2]
     path = mpath.Path(np.asarray(poly))
     yy, xx = np.mgrid[0:H, 0:W]
@@ -334,12 +339,28 @@ def segment_inside_polygon(img, poly, thresh_p=90.0, min_area=40, tolerance=1.0)
     vals = img[inside]
     if vals.size == 0:
         return None, None, None
-    thr = float(np.percentile(vals, thresh_p))
+
+    thr_param = float(thr_param)
+
+    if mode.lower() == "bnd":
+        # BND-like: mean + alpha*std (ROI 내부 픽셀 기준)
+        m = float(np.nanmean(vals))
+        s = float(np.nanstd(vals))
+        if (s <= 0) or (not np.isfinite(s)):
+            # 분산이 거의 없으면 percentile 방식으로 fallback
+            thr = float(np.percentile(vals, 90.0))
+        else:
+            thr = m + thr_param * s
+    else:
+        # 기본: percentile 방식 (이전과 동일)
+        thr = float(np.percentile(vals, thr_param))
+
     cand = (img >= thr) & inside
 
     lab, n = ndi.label(cand)
     if n == 0:
         return thr, None, None
+
     sizes = ndi.sum(cand, lab, index=np.arange(1, n+1))
     k = int(np.argmax(sizes)) + 1
     mask = (lab == k)
@@ -348,6 +369,7 @@ def segment_inside_polygon(img, poly, thresh_p=90.0, min_area=40, tolerance=1.0)
     contours = find_contours(mask.astype(float), 0.5)
     if not contours:
         return thr, None, None
+
     polys = []
     for c in contours:
         xy = np.c_[c[:, 1], c[:, 0]]
@@ -356,8 +378,10 @@ def segment_inside_polygon(img, poly, thresh_p=90.0, min_area=40, tolerance=1.0)
             xy_s = approximate_polygon(xy, tolerance=float(tolerance))
             if len(xy_s) >= 3:
                 polys.append((area, xy_s))
+
     if not polys:
         return thr, None, None
+
     best = max(polys, key=lambda t: t[0])[1]
     return thr, mask, best
 
@@ -380,14 +404,20 @@ class ROIAnnotator:
     def __init__(self, image, title="ROI Drawer (Auto-Seg)", init_thresh_p: float = 70.0,
                  initial_rois=None, tolerance: float = 1.0, min_area: float = 40.0,
                  color_mode: str = "grayscale",
-                 last_view: dict | None = None):
+                 last_view: dict | None = None,
+                 bnd_mode: bool = False):
         self.image = image.astype(np.float32, copy=False)
         self.rois = [] if initial_rois is None else [np.asarray(p, float) for p in initial_rois]
         self.current_selector = None
         self.force_quit = False
+
+        # 🔸 이 값은 mode에 따라 의미가 달라짐
+        #  - percentile 모드: percentile p (예: 70 → 70th percentile)
+        #  - BND 모드      : alpha (thr = mean + alpha*std)
         self.thresh_p = float(init_thresh_p)
         self.tolerance = float(tolerance)
         self.min_area = float(min_area)
+        self.bnd_mode = bool(bnd_mode)   # 🔸 새로 추가된 플래그
 
         if last_view is None:
             last_view = {}
@@ -604,8 +634,16 @@ class ROIAnnotator:
         ch  = f"CLAHE={'ON' if self.use_clahe else 'off'}(clip={self.clahe_clip:.3f})"
         ed  = f"EDGE={'ON' if self.edge_overlay else 'off'}"
         ln  = f"LocalNorm={'ON' if self.local_norm else 'off'}"
+
+        # 🔸 추가: threshold 모드 표시
+        if self.bnd_mode:
+            thr_info = f"ThreshMode=BND(mean+α·std, α={self.thresh_p:.2f})"
+        else:
+            thr_info = f"ThreshMode=percentile(p={self.thresh_p:.1f})"
+
         view_line = (f"[View] p_low={self.p_low:.1f}%, p_high={self.p_high:.1f}%, "
-                     f"gamma={self.gamma:.2f}, invert={inv}, color={self.color_mode} | {bp} | {us} | {ch} | {ed} | {ln}")
+                     f"gamma={self.gamma:.2f}, invert={inv}, color={self.color_mode} | "
+                     f"{bp} | {us} | {ch} | {ed} | {ln} | {thr_info}")
         return (instructions + "\n" + view_line) if instructions else view_line
 
     def _draw_hud(self):
@@ -719,10 +757,16 @@ class ROIAnnotator:
     def on_select(self, verts):
         rough_poly = np.array(verts, dtype=float)
         while True:
+            # 🔸 여기서 mode에 따라 percentile 또는 BND 방식 선택
             thr, mask, poly = segment_inside_polygon(
-                self.image, rough_poly, thresh_p=self.thresh_p,
-                min_area=self.min_area, tolerance=self.tolerance
+                self.image,
+                rough_poly,
+                thr_param=self.thresh_p,
+                min_area=self.min_area,
+                tolerance=self.tolerance,
+                mode=("bnd" if self.bnd_mode else "percentile")
             )
+
             self.ax.clear()
             self.ax.set_axis_off()
             self._update_bg_rgb(rough_poly if self.local_norm else None)
@@ -738,23 +782,44 @@ class ROIAnnotator:
                 self.ax.plot(C[:, 0], C[:, 1], '-', color='lime', linewidth=2.5, alpha=0.95)
                 self.ax.plot([C[-1, 0], C[0, 0]], [C[-1, 1], C[0, 1]],
                              '-', color='lime', linewidth=2.5, alpha=0.95)
-                title = f"Threshold {self.thresh_p:.1f}th (tol={self.tolerance:.2f}, minA={self.min_area:.0f}) → Accept?"
+
+                if self.bnd_mode:
+                    title = (f"BND-mode α={self.thresh_p:.2f}  "
+                             f"(tol={self.tolerance:.2f}, minA={self.min_area:.0f}) → Accept?")
+                else:
+                    title = (f"Threshold p={self.thresh_p:.1f}th  "
+                             f"(tol={self.tolerance:.2f}, minA={self.min_area:.0f}) → Accept?")
             else:
-                title = f"No foreground at {self.thresh_p:.1f}th (tol={self.tolerance:.2f}, minA={self.min_area:.0f}). Adjust?"
+                if self.bnd_mode:
+                    title = (f"No foreground at α={self.thresh_p:.2f}  "
+                             f"(tol={self.tolerance:.2f}, minA={self.min_area:.0f}). Adjust?")
+                else:
+                    title = (f"No foreground at p={self.thresh_p:.1f}th  "
+                             f"(tol={self.tolerance:.2f}, minA={self.min_area:.0f}). Adjust?")
+
             self.ax.set_title(title)
             self._draw_hud()
             self.fig.canvas.draw_idle()
             plt.pause(0.001)
 
-            # ---- 커스텀 모달 Yes/No (맨앞/키보드 지원) ----
-            msg = f"임계값 p={self.thresh_p:.1f}으로 추출된 ROI를 사용할까요?\n(Yes: Y/Space/Enter,  No: N/Esc)"
-            ans = self._ask_yes_no_modal("Auto-segmentation", msg, default_yes=True) if (poly is not None) else False
+            # ---- 모드에 따라 다른 문구의 Yes/No 모달 ----
+            if self.bnd_mode:
+                msg = (f"BND-like mode\n"
+                       f"α={self.thresh_p:.2f} 로 추출된 ROI를 사용할까요?\n"
+                       "(Yes: Y/Space/Enter,  No: N/Esc)")
+            else:
+                msg = (f"임계값 p={self.thresh_p:.1f} (percentile)로 추출된 ROI를 사용할까요?\n"
+                       "(Yes: Y/Space/Enter,  No: N/Esc)")
+
+            ans = False
+            if poly is not None:
+                ans = self._ask_yes_no_modal("Auto-segmentation", msg, default_yes=True)
 
             if ans and poly is not None:
                 self.rois.append(np.asarray(poly))
                 break
             else:
-                # ---- 임계값 재설정 (parent/topmost) ----
+                # ---- 임계값 재설정 ----
                 parent = self._get_parent_tk()
                 if parent is not None:
                     parent.lift(); parent.focus_force()
@@ -762,17 +827,28 @@ class ROIAnnotator:
                     except Exception: pass
 
                 try:
-                    prompt = f"새 percentile p 값을 입력하세요 (0–100)\n현재: {self.thresh_p:.1f}"
-                    newp = self._ask_float_modal(
-                        "임계값 재설정",
-                        prompt,
-                        initial=float(self.thresh_p),
-                        minv=0.0,
-                        maxv=100.0,
-                        step=0.5
-                    )
-                except Exception:
-                    newp = None
+                    if self.bnd_mode:
+                        prompt = (f"새 α 값을 입력하세요 (예: 1.0 ~ 3.0)\n"
+                                  f"현재 α = {self.thresh_p:.2f}")
+                        newp = self._ask_float_modal(
+                            "α 재설정 (BND-mode)",
+                            prompt,
+                            initial=float(self.thresh_p),
+                            minv=-1.0,
+                            maxv=5.0,
+                            step=0.1
+                        )
+                    else:
+                        prompt = (f"새 percentile p 값을 입력하세요 (0–100)\n"
+                                  f"현재 p = {self.thresh_p:.1f}")
+                        newp = self._ask_float_modal(
+                            "임계값 재설정 (percentile)",
+                            prompt,
+                            initial=float(self.thresh_p),
+                            minv=0.0,
+                            maxv=100.0,
+                            step=0.5
+                        )
                 finally:
                     if parent is not None:
                         try: parent.attributes("-topmost", False)
@@ -789,6 +865,7 @@ class ROIAnnotator:
                 pass
             self.current_selector = None
         self._redraw_all()
+
 
     def on_scroll(self, event):
         """
@@ -1276,6 +1353,7 @@ def startup_gui(lang: str = LANG_DEFAULT):
     tol_var         = DoubleVar(value=1.0)
     min_area_var    = StringVar(value="40")
     color_var       = StringVar(value="grayscale")
+    bnd_mode_var    = BooleanVar(value=False)   # 🔸 새로 추가
 
     def browse():
         p = filedialog.askdirectory(title=t("label_folder", "TIF folder", lang=lang))
@@ -1338,7 +1416,8 @@ def startup_gui(lang: str = LANG_DEFAULT):
             "stage": s_num, "time": t_num, "include_no_roi": bool(include_no_roi.get()),
             "timelapse": bool(timelapse_var.get()),
             "tolerance": tol, "min_area": ma,
-            "color_mode": color_var.get()
+            "color_mode": color_var.get(),
+            "bnd_mode": bool(bnd_mode_var.get())   # 🔸 추가
         }
         root.destroy()
 
@@ -1379,8 +1458,14 @@ def startup_gui(lang: str = LANG_DEFAULT):
 
     Label(root, text=t("label_color", "Pseudocolor", lang=lang)).grid(row=9, column=0, sticky="w", **pad)
     OptionMenu(root, color_var, "grayscale", "cyan", "blue", "green", "red", "yellow").grid(row=9, column=1, sticky="w", **pad)
+    # 🔸 BND-like 모드 토글
+    Checkbutton(
+        root,
+        text="BND-like threshold (mean + α·std)",
+        variable=bnd_mode_var
+    ).grid(row=10, column=0, columnspan=2, sticky="w", padx=8, pady=4)
 
-    fbtn = Frame(root); fbtn.grid(row=10, column=0, columnspan=2, pady=10)
+    fbtn = Frame(root); fbtn.grid(row=11, column=0, columnspan=2, pady=10)
     Button(fbtn, text=t("btn_ok", "OK", lang=lang), width=12, command=on_ok).pack(side="left", padx=6)
     Button(fbtn, text=t("btn_cancel", "Cancel", lang=lang), width=12, command=on_cancel).pack(side="left", padx=6)
 
@@ -1419,6 +1504,7 @@ def main():
     tolerance     = params["tolerance"]
     min_area      = params["min_area"]
     color_mode    = params["color_mode"]
+    bnd_mode      = params.get("bnd_mode", False)
 
     files_all = list_tifs(folder)
     if not files_all:
@@ -1478,6 +1564,7 @@ def main():
     log(f"폴더: {folder}")
     log(f"모드: {mode} | 시작채널(선호): {start_ch} | timelapse={timelapse} | include_no_roi={include_no} | 대상 Stage/Time {len(tasks)}개")
     log(f"ROI: {outdir} | mask: {mask_dir} | overlay: {overlay_dir} | zip: {zip_dir}")
+    log(f"threshold_mode = {'BND(mean+α·std)' if bnd_mode else 'percentile(p)'}")
     if mode == "edit":
         tf_msg = t_filter if (timelapse and t_filter is not None) else "N/A"
         log(f"필터: Stage={s_filter if s_filter is not None else 'ALL'}, Time={tf_msg}")
@@ -1485,7 +1572,11 @@ def main():
     if FAST_OVERLAY:
         log(f"overlay: FAST(PIL) mode, max side = {FAST_OVERLAY_MAXPX}px")
 
-    last_thresh = 70.0
+    if bnd_mode:
+        last_thresh = 1.5   # alpha 기본값
+    else:
+        last_thresh = 70.0  # percentile 기본값 (70th)
+
     last_view_params = {
         'p_low': 1.0, 'p_high': 99.0, 'gamma': 1.0, 'invert': False,
         'color_mode': color_mode,
@@ -1515,7 +1606,8 @@ def main():
                 min_area=min_area,
                 color_mode=color_mode,
                 last_view=last_view_params,
-                image=rep_img
+                image=rep_img,
+                bnd_mode=bnd_mode          # 🔸 새로 추가
             )
         else:
             annot = ROIAnnotator(
@@ -1526,7 +1618,8 @@ def main():
                 tolerance=tolerance,
                 min_area=min_area,
                 color_mode=color_mode,
-                last_view=last_view_params
+                last_view=last_view_params,
+                bnd_mode=bnd_mode          # 🔸 새로 추가
             )
 
         rois, last_thresh, view_params = annot.show()
