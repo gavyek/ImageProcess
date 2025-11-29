@@ -1,0 +1,8 @@
+numpy
+pandas
+matplotlib
+Pillow
+tifffile
+scipy
+scikit-image
+python-pptx

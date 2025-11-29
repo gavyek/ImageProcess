@@ -2,9 +2,20 @@
 setlocal
 pushd "%~dp0"
 
+:: 가상환경 Python 경로 설정
+set "PYTHON_CMD=venv\Scripts\python.exe"
+
+:: 가상환경 확인
+if not exist "%PYTHON_CMD%" (
+    echo [ERROR] Virtual environment not found.
+    echo Please run '0_Setup.bat' first.
+    pause
+    goto end
+)
+
 :lang_menu
 cls
-echo Select language / %%%%C5%%%%%%%%N6%%%%%%%%%%C1%%%%:
+echo Select language / 언어 선택:
 echo ==============================
 echo  1. Korean
 echo  2. English
@@ -14,7 +25,8 @@ set "lang_choice="
 set /p "lang_choice=Choose language (1-2): "
 if /I "%lang_choice%"=="1" set "lang_arg=" & goto menu
 if /I "%lang_choice%"=="2" set "lang_arg=-mode EN" & goto menu
-echo Invalid selection. Try again.
+echo Invalid selection.
+echo Try again.
 pause
 goto lang_menu
 
@@ -40,7 +52,8 @@ if /I "%choice%"=="5" goto run5
 if /I "%choice%"=="Q" goto end
 if /I "%choice%"=="q" goto end
 
-echo Invalid selection. Try again.
+echo Invalid selection.
+echo Try again.
 pause
 goto menu
 
@@ -67,7 +80,8 @@ goto menu
 :run
 cls
 echo Running: %~1
-python "%~1" %lang_arg%
+:: 가상환경의 Python으로 스크립트 실행
+"%PYTHON_CMD%" "%~1" %lang_arg%
 call :ask_again
 exit /b
 
@@ -78,7 +92,8 @@ if /I "%again%"=="Y" goto menu
 if /I "%again%"=="N" goto end
 if /I "%again%"=="Q" goto end
 if /I "%again%"=="q" goto end
-echo Invalid input. Enter Y or N.
+echo Invalid input.
+echo Enter Y or N.
 goto ask_again
 
 :end
