@@ -2,11 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-FA Analyzer v1 (Final Release)
-- Integrated Log & Status Window
-- Subset Extraction (Stage/Cell Filtering)
-- Zoom Control (Padding)
-- Custom Export Styles (ROI Line, Colormap, Resolution)
+FA Analyzer v1.1 (Batch Process Added)
+- Default Export Option: 'Show OK Only' is now ON.
+- Removed 'Quick Snapshot' button.
+- Added 'PROCESS ALL FILES (Batch)' button with Progress Log.
 """
 
 import os
@@ -265,11 +264,11 @@ def save_crop_colormap(img_crop, mask, roi_poly_crop, out_path,
 class FAAnalyzerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("FA Analyzer v1 (Final)")
+        self.root.title("FA Analyzer v1.1 (Batch)")
         self.root.geometry("1450x980")
         
-        self.root.bind('<s>', lambda e: self._save_current_view())
-        self.root.bind('<S>', lambda e: self._save_current_view())
+        # Shortcuts removed as Quick Snapshot is gone
+        # self.root.bind('<s>', lambda e: self._save_current_view())
         
         self.img_dir = tk.StringVar()
         self.roi_dir = tk.StringVar()
@@ -290,7 +289,7 @@ class FAAnalyzerApp:
         self.show_mat_var = tk.BooleanVar(value=True)
         self.enable_matlab_var = tk.BooleanVar(value=False)
         
-        self.save_ok_only_var = tk.BooleanVar(value=False)
+        self.save_ok_only_var = tk.BooleanVar(value=True)
 
         self.global_params = {
             'alpha': 2.0,
@@ -428,7 +427,8 @@ class FAAnalyzerApp:
         ttk.Checkbutton(save_opt_frame, text="Save 'OK' Category Only", variable=self.save_ok_only_var).pack(anchor='w')
 
         ttk.Button(right_frame, text="PROCESS CURRENT FILE ONLY", command=self._run_single_process).pack(fill='x', padx=10, pady=5)
-        ttk.Button(right_frame, text="Quick Snapshot (Auto-Save) [Key: S]", command=self._save_current_view).pack(fill='x', padx=10, pady=5)
+        # CHANGED: Replaced Quick Snapshot with Process All
+        ttk.Button(right_frame, text="PROCESS ALL FILES (Batch)", command=self._run_batch_process).pack(fill='x', padx=10, pady=5)
         
         ttk.Separator(right_frame, orient='horizontal').pack(fill='x', pady=10)
         ttk.Label(right_frame, text="Batch Tools").pack(anchor='w', padx=10)
@@ -749,11 +749,7 @@ class FAAnalyzerApp:
         self.ax.axis('off')
         self.canvas.draw()
 
-    def _save_current_view(self):
-        if self.current_idx < 0: return
-        fpath = filedialog.asksaveasfilename(defaultextension=".png")
-        if fpath:
-            self.fig.savefig(fpath)
+    # REMOVED: _save_current_view (Quick Snapshot)
 
     def _run_single_process(self):
         if self.current_img is None: return
@@ -853,6 +849,121 @@ class FAAnalyzerApp:
                 
         except Exception as e:
             traceback.print_exc()
+            messagebox.showerror("Error", str(e))
+
+    def _run_batch_process(self):
+        if not self.file_list:
+            messagebox.showinfo("Info", "No files loaded.")
+            return
+            
+        if not messagebox.askyesno("Confirm Batch", "Process ALL files with current Global Settings?\n(Individual cell settings will be ignored in batch mode)"):
+            return
+
+        out_root = self.out_dir.get()
+        indiv_dir = os.path.join(out_root, "individual_results")
+        if not os.path.exists(indiv_dir): os.makedirs(indiv_dir)
+        
+        px_size = self._get_pixel_size()
+        save_ok_only = self.save_ok_only_var.get()
+        params = self.global_params
+        config = self._convert_um_to_px_config(params)
+        
+        # Progress Window
+        prog_win = tk.Toplevel(self.root)
+        prog_win.title("Batch Processing...")
+        prog_win.geometry("400x300")
+        
+        log_text = tk.Text(prog_win, height=15, state='disabled', bg='#f0f0f0', font=("Consolas", 9))
+        log_text.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        def log(msg):
+            log_text.config(state='normal')
+            log_text.insert(tk.END, msg + "\n")
+            log_text.see(tk.END)
+            log_text.config(state='disabled')
+            prog_win.update()
+            
+        count = 0
+        try:
+            for idx, (img_path, json_path, s_tag) in enumerate(self.file_list):
+                log(f"Processing {s_tag}...")
+                
+                # Load Image
+                if idx == self.current_idx and self.current_img is not None:
+                    img = self.current_img
+                    stats = self.current_stats
+                else:
+                    img = imread(img_path)
+                    if img.ndim > 2: img = img[:,:,0]
+                    img_float = img.astype(np.float32)
+                    sample = img_float[::10, ::10]
+                    bg_val = np.percentile(sample, 1.0)
+                    stats = (np.nanmean(img_float), np.nanstd(img_float), bg_val)
+                
+                with open(json_path, 'r') as f: roi_data = json.load(f)
+                rois = []
+                for item in roi_data.get('rois', []):
+                    pts = item if isinstance(item, list) else item.get('rois', item)
+                    if isinstance(item, list): pts = item
+                    if pts: rois.append(np.array(pts))
+                
+                file_rows = []
+                for i, roi_poly in enumerate(rois):
+                    # In batch mode, we use global config for all cells
+                    # unless we want to load from existing CSV? 
+                    # Usually batch overwrites or creates new. Let's use global.
+                    
+                    xs = roi_poly[:, 0]; ys = roi_poly[:, 1]
+                    x_min, x_max = int(np.floor(xs.min())), int(np.ceil(xs.max()))
+                    y_min, y_max = int(np.floor(ys.min())), int(np.ceil(ys.max()))
+                    pad = 5
+                    x_min = max(0, x_min - pad); x_max = min(img.shape[1], x_max + pad)
+                    y_min = max(0, y_min - pad); y_max = min(img.shape[0], y_max + pad)
+                    
+                    img_crop = img[y_min:y_max, x_min:x_max]
+                    poly_crop = roi_poly.copy()
+                    poly_crop[:, 0] -= x_min
+                    poly_crop[:, 1] -= y_min
+                    mask_crop = np.zeros(img_crop.shape, dtype=bool)
+                    rr, cc = polygon(poly_crop[:,1], poly_crop[:,0], img_crop.shape)
+                    mask_crop[rr, cc] = True
+                    
+                    res, th_val, _, _ = analyze_fa_crop(img_crop, mask_crop, config, stats)
+                    
+                    for cat, items in res.items():
+                        if save_ok_only and cat != 'OK': continue
+                        for item in items:
+                            row_data = {
+                                'File': s_tag,
+                                'Cell_ID': i+1,
+                                'Category': cat,
+                                'Area_px': item['area'],
+                                'Area_um2': item['area'] * (px_size**2),
+                                'Mean_Intensity_Raw': item['mean_int_raw'],
+                                'Mean_Intensity_Corr': item['mean_int_corr'],
+                                'Int_Density_Raw': item['int_den_raw'],
+                                'Int_Density_Corr': item['int_den_corr'],
+                                'Background_Level': item['bg_level'],
+                                'Used_Alpha': params['alpha'],
+                                'Global_Threshold': th_val,
+                                'Min_Area_Setting': params['min_area_um'],
+                                'Max_Area_Setting': params['max_area_um'],
+                                'Close_Radius_Setting': params['close_radius'],
+                                'Subtract_BG_Setting': params.get('subtract_bg', True)
+                            }
+                            file_rows.append(row_data)
+                
+                if file_rows:
+                    csv_path = os.path.join(indiv_dir, f"{s_tag}_results.csv")
+                    pd.DataFrame(file_rows).to_csv(csv_path, index=False)
+                    count += 1
+            
+            log(f"Done. Processed {count} files.")
+            messagebox.showinfo("Batch Complete", f"Processed {count} files.\nResults saved in: {indiv_dir}")
+            
+        except Exception as e:
+            traceback.print_exc()
+            log(f"Error: {e}")
             messagebox.showerror("Error", str(e))
 
     def _merge_all_csvs_report(self):
@@ -971,7 +1082,7 @@ class FAAnalyzerApp:
         # 4. Filter Options
         filt_frame = ttk.LabelFrame(dlg, text="Filter Overlay")
         filt_frame.pack(fill='x', padx=10, pady=5)
-        ok_only_var = tk.BooleanVar(value=True) 
+        ok_only_var = tk.BooleanVar(value=True) # Default ON
         ttk.Checkbutton(filt_frame, text="Show 'OK' Category Only (Exclude Red/Blue)", variable=ok_only_var).pack(anchor='w', padx=5, pady=5)
         
         # 5. Scale Bar Settings
