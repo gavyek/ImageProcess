@@ -6,3 +6,4 @@ tifffile
 scipy
 scikit-image
 python-pptx
+openpyxl

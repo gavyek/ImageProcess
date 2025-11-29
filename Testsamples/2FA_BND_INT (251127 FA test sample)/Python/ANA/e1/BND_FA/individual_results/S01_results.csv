@@ -1,0 +1,3 @@
+File,Cell_ID,Category,Area_px,Area_um2,Mean_Intensity_Raw,Mean_Intensity_Corr,Int_Density_Raw,Int_Density_Corr,Background_Level,Used_Alpha,Global_Threshold,Min_Area_Setting,Max_Area_Setting,Close_Radius_Setting,Subtract_BG_Setting
+S01,2,OK,300.0,3.7632000000000003,15040.184,9415.193,4512055.078125,2824558.0078125,5624.99,3.0,12689.0,1.5,30.0,1,True
+S01,2,OK,122.0,1.5303680000000002,15582.64,9957.649,1901082.037109375,1214833.228515625,5624.99,3.0,12689.0,1.5,30.0,1,True

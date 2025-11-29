@@ -1,0 +1,133 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function C2C12_0MA_V2
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Main Code - TFM
+% Author
+%   Sung Sik Hur - sstahur@gmail.com
+%   Last Modified - 230116
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% [1] Pre-Process
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+clc;clear;close all;load('const_sh');
+
+% (1) File
+dirvar='1VA'; % saved file name location
+flectl=fullfile(dirvar, 'CTL');
+flefle=fullfile(dirvar, 'FLE');
+fledat=fullfile(dirvar, 'DAT');
+
+% (2) Control
+% 1 load
+exc=loadfle(flectl,'mat', 'exc');
+nr=size(exc,1);
+ctob=zeros(nr,1);
+
+% ★★★ 2 switches ★★★★★
+ctob(1:end)=1; % object switch
+% ctob(44:end)=1;
+% optional switch for bnd - 'n', 'a', 'r' 'd'
+%%% Option - BND Cell
+opcal='n'; 
+% opcal='a'; 
+% opcal='r'; 
+% opcal='d'; 
+%%% Option - BND FA
+opths='int';ths=0;alpha=3;
+% opths='pre';ths=0.01;alpha=3;
+% opths='hta';ths=0.01;alpha=2;
+
+% ★★★★★★★★★★★★★★★
+
+% (3) Parameter
+% 1 cal
+
+% 2 plot
+%%% color
+imgco_w=COW.azure;
+imgco_r=COR.tomato;
+imgco_g=COG.lawngreen;
+imgco_b=COB.skyblue;
+%%% color map
+% cmax=0;
+cmax=2^12-1;      % color limit max 
+cmaxv=cmax*ones(size(ctob));
+
+% 3 etc
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% [2] process
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% % 1 BND Cell
+% C2C12_BND_Cell_V2(ctob, ...
+%     'ctcal', 1, 'ctplot', 1, 'ctplcp', 0,                           ... %%% ctl
+%     'swbd', 1, 'swtx', 1, 'swscb', 1, 'opcal', opcal,               ... %%% switch
+%     'sat', [0.001 0.999], 'gam', 0.75, 'imgco', imgco_g,              ... %%% img
+%     'ar_open', 500,'ar_close', 10,                                  ... %%% bnd cal
+%     'lnty', '-', 'lnwd', 1, 'lnco', imgco_w, 'lnap', 1.0,           ... %%% bnd
+%     'txsz', 20, 'txco', [1 1 1]-eps, 'txap', 1.0,                   ... %%% bnd #
+%     'bwd', 5, 'bco', [1 1 1]-eps, 'bap', 1.0,                       ... %%% plot scalebar
+%     'flectl', flectl, 'flefle', flefle, 'fledat', fledat            ... %%% var
+% );
+
+% % % % 2 BND FA
+% C2C12_BND_FA_V2(ctob, ...
+%     'ctcal', 1, 'ctplot', 1, 'ctplcp', 0,                           ... %%% ctl
+%     'swbd',0, 'swtx', 1, 'swscb',1,'swmaxfig', 0,                   ... %%% switch
+%     'swszsm',1, 'swszlg', 1, 'swopen', 1, 'swclose',0,              ... %%% switch filter
+%     'opcal', opcal,'opths', opths,                                  ... %%% option
+%     'ths',ths, 'alpha', alpha,                                      ... %%% cal img
+%     'sat', [0.01 0.999], 'gam', 0.75, 'imgco', COG.lawngreen,       ... %%% plot img
+%     'lnty', '-', 'lnwd', 0.5, 'lnco', imgco_w, 'lnap', 1,           ... %%% plot bnd
+%     'txsz', 10, 'txco', [1 1 1]-eps, 'txap', 1.0,                   ... %%% plot bnd #
+%     'bwd', 5, 'bco', [1 1 1]-eps, 'bap', 0.25,                      ... %%% plot scalebar
+%     'flectl', flectl, 'flefle', flefle, 'fledat', fledat            ... %%% var
+% );
+
+% % % 3 MOR Cell
+C2C12_MOR_Cell_V2(ctob, ...
+    'ctcal', 1, 'ctplot', 0, 'ctplcp', 0, 'ctxls', 1,               ... %%% ctl
+    'swbd', 1, 'swtx', 1, 'swscb', 1, 'swval', 1,                   ... %%% switch
+    'sat', [0.01 0.999], 'gam', 0.75, 'imgco', imgco_g,              ... %%% img
+    'lnty', '-', 'lnwd', 0.5, 'lnco', imgco_g, 'lnap', 1,         ... %%% bnd
+    'txsz', 10, 'txco', [1 1 1]-                                 eps, 'txap', 1.0,                   ... %%% bnd #
+    'bwd', 5, 'bco', [1 1 1]-eps, 'bap', 0.25,                      ... %%% scalebar
+    'flectl', flectl, 'flefle', flefle, 'fledat', fledat            ... %%% var
+);
+% % % 
+% % % % 4 MOR FA
+C2C12_MOR_FA_V2(ctob, ...
+    'ctcal', 0, 'ctplot', 0, 'ctplcp', 0, 'ctxls', 1,               ... %%% ctl
+    'swbd', 0, 'swtx', 1, 'swscb', 1, 'swval', 1,                   ... %%% switch
+    'sat', [0.01 0.999], 'gam', 0.75, 'imgco', imgco_g,              ... %%% img
+    'lnty', '-', 'lnwd', 0.5, 'lnco', imgco_g, 'lnap', 0.75,         ... %%% bnd
+    'txsz', 10, 'txco', imgco_r, 'txap', 1.0,                   ... %%% bnd #
+    'bwd', 5, 'bco', [1 1 1]-eps, 'bap', 0.25,                      ... %%% scalebar
+    'flectl', flectl, 'flefle', flefle, 'fledat', fledat            ... %%% var
+);
+
+% % % 4 INT Cell
+% C2C12_INT_Cell_V2(ctob, ...
+%     'ctcal', 0, 'ctplot', 0, 'ctplcp', 1, 'ctxls', 0,               ... %%% ctl
+%     'swbd', 1, 'swtx', 1, 'swscb', 0, 'opcal', opcal,               ... %%% switch
+%     'sat', [0.01 0.999], 'gam', 1.0, 'imgco', COG.lightgreen,       ... %%% img
+%     'ar_open', 10 ,'ar_close', 0,                                   ... %%% bnd cal
+%     'lnty', '--', 'lnwd', 0.5, 'lnco', [0.9 0.9 0.9], 'lnap', 0.75, ... %%% bnd
+%     'txsz', 10, 'txco', [1 1 1]-eps, 'txap', 1.0,                   ... %%% bnd #
+%     'bwd', 5, 'bco', [1 1 1]-eps, 'bap', 0.25,                      ... %%% scalebar
+%     'cmaxv', cmaxv,                                                 ... %%% plot
+%     'flectl', flectl, 'flefle', flefle, 'fledat', fledat            ... %%% var
+% );
+% 
+% % % 4 INT FA
+% C2C12_INT_FA_V2(ctob, ...
+%     'ctcal', 0, 'ctplot', 0, 'ctplcp', 1, 'ctxls', 0,                            ... %%% ctl
+%     'swbd', 1, 'swtx', 1, 'swscb', 0, 'opcal', opcal,               ... %%% switch
+%     'sat', [0.01 0.999], 'gam', 1.0, 'imgco', COG.lightgreen,       ... %%% img
+%     'ar_open', 10 ,'ar_close', 0,                                   ... %%% bnd cal
+%     'lnty', '--', 'lnwd', 0.5, 'lnco', [0.9 0.9 0.9], 'lnap', 0.75, ... %%% bnd
+%     'txsz', 10, 'txco', [1 1 1]-eps, 'txap', 1.0,                   ... %%% bnd #
+%     'bwd', 5, 'bco', [1 1 1]-eps, 'bap', 0.25,                      ... %%% scalebar
+%     'cmaxv', cmaxv,                                                 ... %%% plot
+%     'flectl', flectl, 'flefle', flefle, 'fledat', fledat            ... %%% var
+% );
+end
