@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Nesprin2_FRET Builder (v1, patched)
+Nesprin2_FRET Builder (v1.1, patched)
+V1.1 patch(25.11.24)
+- -mode EN 추가
 - Log창 활성화 + 단일 실행 흐름 정리 + 파일명 저장 규칙 보완
 - PATCH
   - PNG master ON일 때만 패널/크롭/풀 이미지 옵션 활성화
@@ -27,6 +29,239 @@ import matplotlib.path as mpath
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+
+# -------------------- Language resources --------------------
+LANG_DEFAULT = "ko"
+LANG_CURRENT = LANG_DEFAULT
+
+STRINGS = {
+    "ko": {
+        "title_app": "Nesprin2_FRET Builder (v4)",
+        "lbl_img": "이미지 경로",
+        "lbl_roi": "ROI 경로",
+        "lbl_out": "출력 루트(선택)",
+        "btn_browse": "찾기",
+        "cb_timelapse": "Timelapse 파일명(SXX_tXX_X)",
+        "frame_channels": "채널 선택 & Ratio",
+        "lbl_donor": "Donor",
+        "lbl_fret": "FRET",
+        "lbl_intensity": "Intensity표시 채널",
+        "ratio_fd": "FRET / Donor (YFRET/mTFP)",
+        "ratio_df": "Donor / FRET (mTFP/YFRET)",
+        "frame_bg": "BG 옵션",
+        "bg_scope": "Scope",
+        "bg_mode": "Mode",
+        "bg_percentile": "percentile p(%)",
+        "bg_per_ch": "채널별 p",
+        "bg_donor_p": "Donor p",
+        "bg_fret_p": "FRET p",
+        "bg_clip_neg": "음수 clip",
+        "bg_eps_pct": "ε 퍼센타일(denom)%",
+        "frame_metric": "픽셀/림/애뉴러스(µm)",
+        "metric_px": "픽셀크기 (µm/px)",
+        "rim_preset_label": "림/애뉴러스 프리셋",
+        "rim_thickness": "림 두께 (µm)",
+        "rim_annulus_enable": "로컬 BG 애뉴러스 사용",
+        "rim_annulus_inout": "내경/외경 (µm)",
+        "rim_preset_thin": "Thin (림 0.45 µm, 애뉴러스 0.6/1.5 µm)",
+        "rim_preset_medium": "Medium (림 0.67 µm, 애뉴러스 0.9/1.8 µm)",
+        "rim_preset_thick": "Thick (림 1.00 µm, 애뉴러스 1.2/2.0 µm)",
+        "rim_preset_custom": "사용자 정의",
+        "frame_spec": "스펙트럴 보정(선택)",
+        "spec_use": "스펙트럴 교정 사용",
+        "spec_alpha": "α(d→F)",
+        "spec_beta": "β(a→F)",
+        "spec_g": "G",
+        "spec_aonly": "Acceptor-only 채널(선택)",
+        "frame_display": "표시/스케일",
+        "display_preset": "Preset",
+        "display_fret_minmax": "FRET min/max",
+        "display_colormap": "컬러맵",
+        "display_show_cbar": "컬러바 표시",
+        "display_scalebar": "스케일바(µm)",
+        "frame_output": "출력",
+        "output_xls": "XLS",
+        "output_tif": "TIF",
+        "output_png": "PNG",
+        "output_panel": "PNG: 패널(Intensity+FRET, rim-only)",
+        "output_full": "PNG: full image",
+        "scale_preset_015": "0-1.5",
+        "scale_preset_010": "0-1.0",
+        "scale_preset_custom": "Custom",
+        "frame_crop": "PNG: ROI Crop",
+        "crop_save": "저장",
+        "crop_save_intensity": "Intensity rim-only도 저장",
+        "crop_mask_outside": "ROI 바깥 마스킹",
+        "crop_fixed": "고정 픽셀 크기",
+        "crop_wh": "W×H(px)",
+        "crop_vmin": "vmin",
+        "crop_vmax": "vmax",
+        "frame_subset": "부분 추출",
+        "subset_enable": "활성화",
+        "subset_stage": "Stage",
+        "subset_time": "Time",
+        "frame_qc": "QC / Outlier 옵션",
+        "qc_sat_filter": "포화 픽셀 제거",
+        "qc_sat_threshold": "포화 임계값",
+        "qc_clip_ratio": "고비율(Ratio) 제외",
+        "qc_clip_max": "최대 비율",
+        "log_label": "Log",
+        "btn_run": "실행",
+        "btn_cancel": "취소",
+        "browse_img": "이미지 폴더 선택",
+        "browse_roi": "ROI 폴더 선택",
+        "browse_out": "출력 루트(RES 상위) 선택",
+        "err_title": "오류",
+        "err_invalid_img": "유효한 이미지 경로를 선택하세요.",
+        "err_invalid_roi": "유효한 ROI 경로를 선택하세요.",
+        "err_channels": "채널 선택을 확인하세요.",
+        "err_percentile": "percentile/ε 입력 오류",
+        "err_metric": "픽셀·림 입력 오류",
+        "err_annulus": "애뉴러스 내/외경(µm) 확인",
+        "err_fret_minmax": "FRET min/max 확인",
+        "err_scalebar": "스케일바 길이 확인",
+        "err_crop": "Crop W/H(px) 확인",
+        "err_qc": "QC 옵션 확인",
+        "log_batch_start": "배치 작업을 시작합니다.",
+        "log_batch_end": "모든 작업이 정상 종료되었습니다.",
+        "log_worker_exception": "작업 도중 예외 발생: {err}",
+        "log_ready": "준비 완료. 파라미터 변경 후 다시 [실행]을 누르세요.",
+        "msg_warn_no_roi_table": "[주의] ROI가 없어 정량 테이블이 없습니다.",
+        "msg_save_csv": "[저장] xls/{name} (CSV)",
+        "msg_save_xlsx": "[저장] xls/{name} (XLSX)",
+        "msg_warn_no_openpyxl": "[경고] openpyxl 미설치 → XLSX 저장 생략, CSV만 저장되었습니다.",
+        "msg_info_pairs": "[정보] 총 처리 대상 쌍: {count}",
+        "msg_no_pairs": "매칭되는 (donor, fret) 채널 쌍이 없습니다.",
+        "msg_subset_none": "[부분추출] 조건에 맞는 쌍이 없습니다.",
+        "msg_processing": "[처리] {tag} ...",
+        "msg_warn_no_roi_tag": "[경고] {tag}: ROI 없음 — 건너뜀",
+        "msg_done_outdir": "[완료] 출력 폴더: {dir}",
+    },
+    "en": {
+        "title_app": "Nesprin2_FRET Builder (v4)",
+        "lbl_img": "Image folder",
+        "lbl_roi": "ROI folder",
+        "lbl_out": "Output root (optional)",
+        "btn_browse": "Browse",
+        "cb_timelapse": "Timelapse filenames (SXX_tXX_X)",
+        "frame_channels": "Channels & Ratio",
+        "lbl_donor": "Donor",
+        "lbl_fret": "FRET",
+        "lbl_intensity": "Intensity channel",
+        "ratio_fd": "FRET / Donor (YFRET/mTFP)",
+        "ratio_df": "Donor / FRET (mTFP/YFRET)",
+        "frame_bg": "BG options",
+        "bg_scope": "Scope",
+        "bg_mode": "Mode",
+        "bg_percentile": "percentile p(%)",
+        "bg_per_ch": "per-channel p",
+        "bg_donor_p": "Donor p",
+        "bg_fret_p": "FRET p",
+        "bg_clip_neg": "clip negatives",
+        "bg_eps_pct": "ε percentile(denom)%",
+        "frame_metric": "Pixel/Rim/Annulus (µm)",
+        "metric_px": "Pixel size (µm/px)",
+        "rim_preset_label": "Rim/Annulus preset",
+        "rim_thickness": "Rim thickness (µm)",
+        "rim_annulus_enable": "Use local BG annulus",
+        "rim_annulus_inout": "Inner/outer (µm)",
+        "rim_preset_thin": "Thin (rim 0.45 µm, ann 0.6/1.5 µm)",
+        "rim_preset_medium": "Medium (rim 0.67 µm, ann 0.9/1.8 µm)",
+        "rim_preset_thick": "Thick (rim 1.00 µm, ann 1.2/2.0 µm)",
+        "rim_preset_custom": "Custom",
+        "frame_spec": "Spectral correction (optional)",
+        "spec_use": "Use spectral correction",
+        "spec_alpha": "α(d→F)",
+        "spec_beta": "β(a→F)",
+        "spec_g": "G",
+        "spec_aonly": "Acceptor-only channel (optional)",
+        "frame_display": "Display / Scale",
+        "display_preset": "Preset",
+        "display_fret_minmax": "FRET min/max",
+        "display_colormap": "Colormap",
+        "display_show_cbar": "Show colorbar",
+        "display_scalebar": "Scalebar (µm)",
+        "frame_output": "Outputs",
+        "output_xls": "XLS",
+        "output_tif": "TIF",
+        "output_png": "PNG",
+        "output_panel": "PNG: panel (Intensity+FRET, rim-only)",
+        "output_full": "PNG: full image",
+        "scale_preset_015": "0-1.5",
+        "scale_preset_010": "0-1.0",
+        "scale_preset_custom": "Custom",
+        "frame_crop": "PNG: ROI Crop",
+        "crop_save": "Save",
+        "crop_save_intensity": "Save intensity rim-only",
+        "crop_mask_outside": "Mask outside ROI",
+        "crop_fixed": "Use fixed pixel size",
+        "crop_wh": "W×H(px)",
+        "crop_vmin": "vmin",
+        "crop_vmax": "vmax",
+        "frame_subset": "Subset",
+        "subset_enable": "Enable",
+        "subset_stage": "Stage",
+        "subset_time": "Time",
+        "frame_qc": "QC / Outlier options",
+        "qc_sat_filter": "Remove saturated pixels",
+        "qc_sat_threshold": "Saturation threshold",
+        "qc_clip_ratio": "Remove high ratio",
+        "qc_clip_max": "Max ratio",
+        "log_label": "Log",
+        "btn_run": "Run",
+        "btn_cancel": "Cancel",
+        "browse_img": "Select image folder",
+        "browse_roi": "Select ROI folder",
+        "browse_out": "Select output root (RES parent)",
+        "err_title": "Error",
+        "err_invalid_img": "Select a valid image folder.",
+        "err_invalid_roi": "Select a valid ROI folder.",
+        "err_channels": "Check channel selections.",
+        "err_percentile": "percentile/ε input error",
+        "err_metric": "Pixel/rim input error",
+        "err_annulus": "Check annulus inner/outer (µm)",
+        "err_fret_minmax": "Check FRET min/max",
+        "err_scalebar": "Check scalebar length",
+        "err_crop": "Check crop W/H(px)",
+        "err_qc": "Check QC options",
+        "log_batch_start": "Starting batch processing.",
+        "log_batch_end": "All tasks finished successfully.",
+        "log_worker_exception": "Exception during processing: {err}",
+        "log_ready": "Ready. Modify parameters and press [Run] again.",
+        "msg_warn_no_roi_table": "[Warn] No ROI → metric table is empty.",
+        "msg_save_csv": "[Saved] xls/{name} (CSV)",
+        "msg_save_xlsx": "[Saved] xls/{name} (XLSX)",
+        "msg_warn_no_openpyxl": "[Warn] openpyxl missing → skipped XLSX, saved CSV only.",
+        "msg_info_pairs": "[Info] Total pairs: {count}",
+        "msg_no_pairs": "No matched (donor, fret) channel pairs.",
+        "msg_subset_none": "[Subset] No pairs match the filter.",
+        "msg_processing": "[Processing] {tag} ...",
+        "msg_warn_no_roi_tag": "[Warn] {tag}: ROI missing — skipped",
+        "msg_done_outdir": "[Done] Output folder: {dir}",
+    },
+}
+
+def t(key: str, default=None, lang=None) -> str:
+    lng = (lang or LANG_CURRENT or LANG_DEFAULT)
+    if lng not in STRINGS:
+        lng = LANG_DEFAULT
+    if key in STRINGS[lng]:
+        return STRINGS[lng][key]
+    if key in STRINGS.get(LANG_DEFAULT, {}):
+        return STRINGS[LANG_DEFAULT][key]
+    return default if default is not None else key
+
+def pick_lang_from_argv(argv):
+    lang = LANG_DEFAULT
+    for i, a in enumerate(argv):
+        al = str(a).lower()
+        if al in ("-mode", "--mode", "-lang", "--lang") and i + 1 < len(argv):
+            nxt = str(argv[i + 1]).lower()
+            if nxt.startswith("en"):
+                lang = "en"
+        if al in ("en", "english", "-mode=en", "--mode=en", "-lang=en", "--lang=en"):
+            lang = "en"
+    return lang
 
 # ===================== 공통 유틸 =====================
 
@@ -388,26 +623,54 @@ class LoggerWriter:
 # ===================== GUI =====================
 
 CMAP_CHOICES = ["jet","turbo","viridis","plasma","magma","inferno","cividis"]
-SCALE_PRESETS = ["0–1.5", "0–1.0", "Custom"]  # 0–0.7 제거, 0–1.5 추가
-
-# === Rim/Annulus Presets ===
-RIM_PRESET_CHOICES = [
-    "Thin (rim 0.45 µm, ann 0.6/1.5 µm)",
-    "Medium (rim 0.67 µm, ann 0.9/1.8 µm)",
-    "Thick (rim 1.00 µm, ann 1.2/2.0 µm)",
-    "사용자 정의",
+SCALE_PRESET_BASE = [
+    ("0-1.5", (0.0, 1.5)),
+    ("0-1.0", (0.0, 1.0)),
+    ("custom", (None, None)),
 ]
-# 값: (rim_um, annulus_inner_um, annulus_outer_um, annulus_on_or_None)
-RIM_PRESET_VALUES = {
-    RIM_PRESET_CHOICES[0]: (0.45, 0.6, 1.5, None),   # ← annulus_on 강제 해제
-    RIM_PRESET_CHOICES[1]: (0.67, 0.9, 1.8, None),   # ← annulus_on 강제 해제
-    RIM_PRESET_CHOICES[2]: (1.00, 1.2, 2.0, None),   # ← annulus_on 강제 해제
-    RIM_PRESET_CHOICES[3]: (None, None, None, None), # Custom
-}
+
+RIM_PRESET_DEFS = [
+    ("thin",   (0.45, 0.6, 1.5, None)),
+    ("medium", (0.67, 0.9, 1.8, None)),
+    ("thick",  (1.00, 1.2, 2.0, None)),
+    ("custom", (None, None, None, None)),
+]
+
+def build_scale_presets(lang=None):
+    labels = {
+        "0-1.5": t("scale_preset_015", "0-1.5", lang=lang),
+        "0-1.0": t("scale_preset_010", "0-1.0", lang=lang),
+        "custom": t("scale_preset_custom", "Custom", lang=lang),
+    }
+    choices=[]; values={}
+    for key, (cmin, cmax) in SCALE_PRESET_BASE:
+        lbl = labels.get(key, key)
+        choices.append(lbl)
+        values[lbl] = (cmin, cmax)
+    return choices, values
+
+def build_rim_presets(lang=None):
+    labels = {
+        "thin": t("rim_preset_thin","Thin (rim 0.45 µm, ann 0.6/1.5 µm)", lang=lang),
+        "medium": t("rim_preset_medium","Medium (rim 0.67 µm, ann 0.9/1.8 µm)", lang=lang),
+        "thick": t("rim_preset_thick","Thick (rim 1.00 µm, ann 1.2/2.0 µm)", lang=lang),
+        "custom": t("rim_preset_custom","Custom", lang=lang),
+    }
+    choices=[]; values={}
+    for key, vals in RIM_PRESET_DEFS:
+        lbl = labels.get(key, key)
+        choices.append(lbl)
+        values[lbl] = vals
+    return choices, values
 
 
 
-def gui_get_params():
+def gui_get_params(lang=None):
+    lang = lang or LANG_CURRENT
+    scale_choices, scale_values = build_scale_presets(lang)
+    rim_choices, rim_values = build_rim_presets(lang)
+    default_scale = scale_choices[0] if scale_choices else ""
+    default_rim_preset = rim_choices[-1] if rim_choices else ""
     res = {
         "img_dir": None, "roi_dir": None, "out_root": "",
         "timelapse": False,
@@ -420,7 +683,7 @@ def gui_get_params():
         "px_um": 0.223, "rim_um": 1.12,
         "annulus_on": False, "ann_in_um": 1.2, "ann_out_um": 2.5,
         "use_spectral": False, "alpha": 0.0, "beta": 0.0, "g_factor": 1.0, "aonly_ch": None,
-        "scale_preset": "0–1.5",
+        "scale_preset": default_scale,
         "fret_min": 0.0, "fret_max": 1.5,
         "cmap_name": "turbo", "show_colorbar": False,
         "add_scalebar": False, "scale_bar_um": 20.0,
@@ -435,7 +698,7 @@ def gui_get_params():
     }
 
     root=tk.Tk()
-    root.title("Nesprin2_FRET Builder (v4)")
+    root.title(t("title_app","Nesprin2_FRET Builder (v4)", lang=lang))
     root.resizable(False, False)
 
     # path vars
@@ -467,7 +730,7 @@ def gui_get_params():
     ann_in_v=tk.StringVar(value="1.2")
     ann_out_v=tk.StringVar(value="2.5")
     # NEW: rim/annulus preset
-    rim_preset_v = tk.StringVar(value="사용자 정의")
+    rim_preset_v = tk.StringVar(value=default_rim_preset)
 
     # spectral
     spec_on_v=tk.BooleanVar(value=False)
@@ -477,7 +740,7 @@ def gui_get_params():
     aonly_v=tk.StringVar(value="")
 
     # display
-    preset_v=tk.StringVar(value="0–1.5")
+    preset_v=tk.StringVar(value=res["scale_preset"])
     cmin_v=tk.StringVar(value="0.0")
     cmax_v=tk.StringVar(value="1.5")
     cmap_v=tk.StringVar(value="turbo")
@@ -514,113 +777,111 @@ def gui_get_params():
     clip_max_v = tk.StringVar(value="20.0")
 
     def browse_img():
-        p=filedialog.askdirectory(title="이미지 폴더 선택")
+        p=filedialog.askdirectory(title=t("browse_img","이미지 폴더 선택", lang=lang))
         if p:
             img_v.set(p)
 
     def browse_roi():
-        p=filedialog.askdirectory(title="ROI 폴더 선택")
+        p=filedialog.askdirectory(title=t("browse_roi","ROI 폴더 선택", lang=lang))
         if p:
             roi_v.set(p)
 
     def browse_out():
-        p=filedialog.askdirectory(title="출력 루트(선택)")
+        p=filedialog.askdirectory(title=t("browse_out","출력 루트(선택)", lang=lang))
         if p:
             out_v.set(p)
 
     def on_preset_change(*_):
-        pv = preset_v.get()
-        if pv == "0–1.5":
-            cmin_v.set("0.0"); cmax_v.set("1.5")
-        elif pv == "0–1.0":
-            cmin_v.set("0.0"); cmax_v.set("1.0")
-        # Custom은 사용자가 직접 입력
+        cmin, cmax = scale_values.get(preset_v.get(), (None, None))
+        if (cmin is not None) and (cmax is not None):
+            cmin_v.set(str(cmin))
+            cmax_v.set(str(cmax))
 
     pad={'padx':8,'pady':6}
 
     # 경로
-    tk.Label(root,text="이미지 경로").grid(row=0,column=0,sticky="w",**pad)
+    tk.Label(root,text=t("lbl_img","이미지 경로", lang=lang)).grid(row=0,column=0,sticky="w",**pad)
     fr=tk.Frame(root); fr.grid(row=0,column=1,sticky="ew",**pad)
     tk.Entry(fr,textvariable=img_v,width=52).pack(side="left")
-    tk.Button(fr,text="찾기",width=8,command=browse_img).pack(side="left",padx=6)
+    tk.Button(fr,text=t("btn_browse","찾기", lang=lang),width=8,command=browse_img).pack(side="left",padx=6)
 
-    tk.Label(root,text="ROI 경로").grid(row=1,column=0,sticky="w",**pad)
+    tk.Label(root,text=t("lbl_roi","ROI 경로", lang=lang)).grid(row=1,column=0,sticky="w",**pad)
     fr=tk.Frame(root); fr.grid(row=1,column=1,sticky="ew",**pad)
     tk.Entry(fr,textvariable=roi_v,width=52).pack(side="left")
-    tk.Button(fr,text="찾기",width=8,command=browse_roi).pack(side="left",padx=6)
+    tk.Button(fr,text=t("btn_browse","찾기", lang=lang),width=8,command=browse_roi).pack(side="left",padx=6)
 
-    tk.Label(root,text="출력 루트(선택)").grid(row=2,column=0,sticky="w",**pad)
+    tk.Label(root,text=t("lbl_out","출력 루트(선택)", lang=lang)).grid(row=2,column=0,sticky="w",**pad)
     fr=tk.Frame(root); fr.grid(row=2,column=1,sticky="ew",**pad)
     tk.Entry(fr,textvariable=out_v,width=52).pack(side="left")
-    tk.Button(fr,text="찾기",width=8,command=browse_out).pack(side="left",padx=6)
+    tk.Button(fr,text=t("btn_browse","찾기", lang=lang),width=8,command=browse_out).pack(side="left",padx=6)
 
-    tk.Checkbutton(root, text="Timelapse 파일명(SXX_tXX_X)", variable=tl_v)\
+    tk.Checkbutton(root, text=t("cb_timelapse","Timelapse 파일명(SXX_tXX_X)", lang=lang), variable=tl_v)\
         .grid(row=3, column=0, columnspan=2, sticky="w", padx=8, pady=(4,0))
 
     # 채널 + ratio
-    chf=tk.LabelFrame(root,text="채널 선택 & Ratio")
+    chf=tk.LabelFrame(root,text=t("frame_channels","채널 선택 & Ratio", lang=lang))
     chf.grid(row=4,column=0,columnspan=2,sticky="we",padx=8,pady=(4,6))
-    tk.Label(chf,text="Donor").grid(row=0,column=0,sticky="e")
+    tk.Label(chf,text=t("lbl_donor","Donor", lang=lang)).grid(row=0,column=0,sticky="e")
     ttk.Combobox(chf,textvariable=donor_v,
                  values=["0","1","2","3","4"],width=6,state="readonly").grid(row=0,column=1,sticky="w")
-    tk.Label(chf,text="FRET").grid(row=0,column=2,sticky="e")
+    tk.Label(chf,text=t("lbl_fret","FRET", lang=lang)).grid(row=0,column=2,sticky="e")
     ttk.Combobox(chf,textvariable=fret_v,
                  values=["0","1","2","3","4"],width=6,state="readonly").grid(row=0,column=3,sticky="w")
-    tk.Label(chf,text="Intensity표시 채널").grid(row=0,column=4,sticky="e")
+    tk.Label(chf,text=t("lbl_intensity","Intensity표시 채널", lang=lang)).grid(row=0,column=4,sticky="e")
     ttk.Combobox(chf,textvariable=inten_v,
                  values=["0","1","2","3","4"],width=6,state="readonly").grid(row=0,column=5,sticky="w")
     fr_ratio=tk.Frame(chf); fr_ratio.grid(row=1,column=0,columnspan=6,sticky="w",pady=(4,0))
-    tk.Radiobutton(fr_ratio,text="FRET / Donor (YFRET/mTFP)",
+    tk.Radiobutton(fr_ratio,text=t("ratio_fd","FRET / Donor (YFRET/mTFP)", lang=lang),
                    variable=mode_v,value="FRET/Donor").pack(side="left",padx=4)
-    tk.Radiobutton(fr_ratio,text="Donor / FRET (mTFP/YFRET)",
+    tk.Radiobutton(fr_ratio,text=t("ratio_df","Donor / FRET (mTFP/YFRET)", lang=lang),
                    variable=mode_v,value="Donor/FRET").pack(side="left",padx=12)
 
     # BG
-    bgf=tk.LabelFrame(root,text="BG 옵션")
+    bgf=tk.LabelFrame(root,text=t("frame_bg","BG 옵션", lang=lang))
     bgf.grid(row=5,column=0,columnspan=2,sticky="we",padx=8,pady=(4,6))
-    tk.Label(bgf,text="Scope").grid(row=0,column=0,sticky="e",padx=6,pady=4)
+    tk.Label(bgf,text=t("bg_scope","Scope", lang=lang)).grid(row=0,column=0,sticky="e",padx=6,pady=4)
     ttk.Combobox(bgf,textvariable=scope_v,
                  values=["full","roi_union","annulus"],width=10,
                  state="readonly").grid(row=0,column=1,sticky="w")
-    tk.Label(bgf,text="Mode").grid(row=0,column=2,sticky="e",padx=6,pady=4)
+    tk.Label(bgf,text=t("bg_mode","Mode", lang=lang)).grid(row=0,column=2,sticky="e",padx=6,pady=4)
     ttk.Combobox(bgf,textvariable=bgmode_v,
                  values=["percentile","hist-mode"],width=12,
                  state="readonly").grid(row=0,column=3,sticky="w")
-    tk.Label(bgf,text="percentile p(%)").grid(row=1,column=0,sticky="e",padx=6,pady=4)
+    tk.Label(bgf,text=t("bg_percentile","percentile p(%)", lang=lang)).grid(row=1,column=0,sticky="e",padx=6,pady=4)
     tk.Entry(bgf,textvariable=p_v,width=10).grid(row=1,column=1,sticky="w")
-    tk.Checkbutton(bgf,text="채널별 p",variable=per_ch_v)\
+    tk.Checkbutton(bgf,text=t("bg_per_ch","채널별 p", lang=lang),variable=per_ch_v)\
         .grid(row=1,column=2,sticky="w")
-    tk.Label(bgf,text="Donor p").grid(row=1,column=3,sticky="e")
+    tk.Label(bgf,text=t("bg_donor_p","Donor p", lang=lang)).grid(row=1,column=3,sticky="e")
     tk.Entry(bgf,textvariable=donor_p_v,width=8).grid(row=1,column=4,sticky="w")
-    tk.Label(bgf,text="FRET p").grid(row=1,column=5,sticky="e")
+    tk.Label(bgf,text=t("bg_fret_p","FRET p", lang=lang)).grid(row=1,column=5,sticky="e")
     tk.Entry(bgf,textvariable=fret_p_v,width=8).grid(row=1,column=6,sticky="w")
-    tk.Checkbutton(bgf,text="음수 clip",variable=clip_v)\
+    tk.Checkbutton(bgf,text=t("bg_clip_neg","음수 clip", lang=lang),variable=clip_v)\
         .grid(row=2,column=0,columnspan=2,sticky="w",padx=6)
-    tk.Label(bgf,text="ε 퍼센타일(denom)%").grid(row=2,column=2,sticky="e",padx=6)
+    tk.Label(bgf,text=t("bg_eps_pct","ε 퍼센타일(denom)%", lang=lang)).grid(row=2,column=2,sticky="e",padx=6)
     tk.Entry(bgf,textvariable=eps_v,width=10).grid(row=2,column=3,sticky="w")
 
      # ============ Metric (px, rim, annulus) WITH PRESET ============
-    met=tk.LabelFrame(root, text="픽셀/림/애뉴러스(µm)")
+    met=tk.LabelFrame(root, text=t("frame_metric","픽셀/림/애뉴러스(µm)", lang=lang))
     met.grid(row=6,column=0,columnspan=2,sticky="we",padx=8,pady=(4,6))
     # row 0: pixel size + preset combobox
-    tk.Label(met,text="픽셀크기 (µm/px)").grid(row=0,column=0,sticky="e")
+    tk.Label(met,text=t("metric_px","픽셀크기 (µm/px)", lang=lang)).grid(row=0,column=0,sticky="e")
     tk.Entry(met,textvariable=px_v,width=10).grid(row=0,column=1,sticky="w")
-    tk.Label(met,text="림/애뉴러스 프리셋").grid(row=0,column=2,sticky="e")
+    tk.Label(met,text=t("rim_preset_label","림/애뉴러스 프리셋", lang=lang)).grid(row=0,column=2,sticky="e")
     cb_rim_preset = ttk.Combobox(
         met, textvariable=rim_preset_v,
-        values=RIM_PRESET_CHOICES, width=34, state="readonly"
+        values=rim_choices, width=34, state="readonly"
     )
     cb_rim_preset.grid(row=0,column=3,columnspan=3,sticky="w")
 
     # row 1~2: (사용자 정의 입력부)
-    tk.Label(met,text="림 두께 (µm)").grid(row=1,column=0,sticky="e",padx=6)
+    tk.Label(met,text=t("rim_thickness","림 두께 (µm)", lang=lang)).grid(row=1,column=0,sticky="e",padx=6)
     ent_rim_um = tk.Entry(met,textvariable=rim_um_v,width=10)
     ent_rim_um.grid(row=1,column=1,sticky="w")
 
-    chk_ann = tk.Checkbutton(met,text="로컬 BG 애뉴러스 사용",variable=ann_on_v)
+    chk_ann = tk.Checkbutton(met,text=t("rim_annulus_enable","로컬 BG 애뉴러스 사용", lang=lang),variable=ann_on_v)
     chk_ann.grid(row=2,column=0,sticky="w",padx=6)
 
-    tk.Label(met,text="내경/외경 (µm)").grid(row=2,column=1,sticky="e")
+    tk.Label(met,text=t("rim_annulus_inout","내경/외경 (µm)", lang=lang)).grid(row=2,column=1,sticky="e")
     ent_ann_in  = tk.Entry(met,textvariable=ann_in_v,width=8)
     ent_ann_out = tk.Entry(met,textvariable=ann_out_v,width=8)
     ent_ann_in.grid(row=2,column=2,sticky="w")
@@ -637,9 +898,10 @@ def gui_get_params():
 
     def apply_rim_preset(*_):
         sel = rim_preset_v.get()
-        vals = RIM_PRESET_VALUES.get(sel, (None, None, None, None))
+        vals = rim_values.get(sel, (None, None, None, None))
         rim_um, ann_in_um, ann_out_um, ann_on = vals
-        if sel != "사용자 정의":
+        is_custom = (rim_choices and sel == rim_choices[-1])
+        if not is_custom:
             # 값 자동 채움 (두께/내·외경만 세팅)
             if rim_um is not None:
                 rim_um_v.set(f"{rim_um:.2f}")
@@ -662,84 +924,84 @@ def gui_get_params():
     apply_rim_preset()
 
     # Spectral
-    spf=tk.LabelFrame(root,text="스펙트럴 보정(선택)")
+    spf=tk.LabelFrame(root,text=t("frame_spec","스펙트럴 보정(선택)", lang=lang))
     spf.grid(row=7,column=0,columnspan=2,sticky="we",padx=8,pady=(4,6))
-    tk.Checkbutton(spf,text="스펙트럴 교정 사용",variable=spec_on_v)\
+    tk.Checkbutton(spf,text=t("spec_use","스펙트럴 교정 사용", lang=lang),variable=spec_on_v)\
         .grid(row=0,column=0,sticky="w",padx=6)
-    tk.Label(spf,text="α(d→F)").grid(row=0,column=1,sticky="e")
+    tk.Label(spf,text=t("spec_alpha","α(d→F)", lang=lang)).grid(row=0,column=1,sticky="e")
     tk.Entry(spf,textvariable=alpha_v,width=8).grid(row=0,column=2,sticky="w")
-    tk.Label(spf,text="β(a→F)").grid(row=0,column=3,sticky="e")
+    tk.Label(spf,text=t("spec_beta","β(a→F)", lang=lang)).grid(row=0,column=3,sticky="e")
     tk.Entry(spf,textvariable=beta_v,width=8).grid(row=0,column=4,sticky="w")
-    tk.Label(spf,text="G").grid(row=0,column=5,sticky="e")
+    tk.Label(spf,text=t("spec_g","G", lang=lang)).grid(row=0,column=5,sticky="e")
     tk.Entry(spf,textvariable=gfac_v,width=8).grid(row=0,column=6,sticky="w")
-    tk.Label(spf,text="Acceptor-only 채널(선택)").grid(row=0,column=7,sticky="e")
+    tk.Label(spf,text=t("spec_aonly","Acceptor-only 채널(선택)", lang=lang)).grid(row=0,column=7,sticky="e")
     ttk.Combobox(spf,textvariable=aonly_v,
                  values=["","0","1","2","3","4"],width=4,
                  state="readonly").grid(row=0,column=8,sticky="w")
 
     # Display
-    dsf=tk.LabelFrame(root,text="표시/스케일")
+    dsf=tk.LabelFrame(root,text=t("frame_display","표시/스케일", lang=lang))
     dsf.grid(row=8,column=0,columnspan=2,sticky="we",padx=8,pady=(4,6))
-    tk.Label(dsf,text="Preset").grid(row=0,column=0,sticky="e")
+    tk.Label(dsf,text=t("display_preset","Preset", lang=lang)).grid(row=0,column=0,sticky="e")
     dd=ttk.Combobox(dsf,textvariable=preset_v,
-                    values=SCALE_PRESETS,width=8,state="readonly")
+                    values=scale_choices,width=12,state="readonly")
     dd.grid(row=0,column=1,sticky="w")
     dd.bind("<<ComboboxSelected>>", on_preset_change)
-    tk.Label(dsf,text="FRET min/max").grid(row=0,column=2,sticky="e")
+    tk.Label(dsf,text=t("display_fret_minmax","FRET min/max", lang=lang)).grid(row=0,column=2,sticky="e")
     tk.Entry(dsf,textvariable=cmin_v,width=6).grid(row=0,column=3,sticky="w")
     tk.Label(dsf,text="~").grid(row=0,column=4,sticky="w")
     tk.Entry(dsf,textvariable=cmax_v,width=6).grid(row=0,column=5,sticky="w")
-    tk.Label(dsf,text="컬러맵").grid(row=0,column=6,sticky="e")
+    tk.Label(dsf,text=t("display_colormap","컬러맵", lang=lang)).grid(row=0,column=6,sticky="e")
     ttk.Combobox(dsf,textvariable=cmap_v,
                  values=CMAP_CHOICES,width=10,state="readonly").grid(row=0,column=7,sticky="w")
-    tk.Checkbutton(dsf,text="컬러바 표시",variable=cbar_v)\
+    tk.Checkbutton(dsf,text=t("display_show_cbar","컬러바 표시", lang=lang),variable=cbar_v)\
         .grid(row=0,column=8,sticky="w",padx=6)
-    tk.Checkbutton(dsf,text="스케일바(µm)",variable=sb_on_v)\
+    tk.Checkbutton(dsf,text=t("display_scalebar","스케일바(µm)", lang=lang),variable=sb_on_v)\
         .grid(row=0,column=9,sticky="w")
     tk.Entry(dsf,textvariable=sb_um_v,width=6).grid(row=0,column=10,sticky="w")
 
     # Outputs
-    outf=tk.LabelFrame(root,text="출력")
+    outf=tk.LabelFrame(root,text=t("frame_output","출력", lang=lang))
     outf.grid(row=9,column=0,columnspan=2,sticky="we",padx=8,pady=(4,6))
-    tk.Checkbutton(outf,text="XLS",variable=out_xls)\
+    tk.Checkbutton(outf,text=t("output_xls","XLS", lang=lang),variable=out_xls)\
         .grid(row=0,column=0,sticky="w",padx=6)
-    tk.Checkbutton(outf,text="TIF",variable=out_tif)\
+    tk.Checkbutton(outf,text=t("output_tif","TIF", lang=lang),variable=out_tif)\
         .grid(row=0,column=1,sticky="w",padx=6)
-    png_master_cb = tk.Checkbutton(outf,text="PNG",variable=out_png)
+    png_master_cb = tk.Checkbutton(outf,text=t("output_png","PNG", lang=lang),variable=out_png)
     png_master_cb.grid(row=0,column=2,sticky="w",padx=6)
     panel_cb = tk.Checkbutton(outf,
-                              text="PNG: 패널(Intensity+FRET, rim-only)",
+                              text=t("output_panel","PNG: 패널(Intensity+FRET, rim-only)", lang=lang),
                               variable=save_panel)
     panel_cb.grid(row=0,column=3,sticky="w",padx=6)
     full_cb = tk.Checkbutton(outf,
-                             text="PNG: full image",
+                             text=t("output_full","PNG: full image", lang=lang),
                              variable=save_full)
     full_cb.grid(row=0,column=4,sticky="w",padx=6)
 
     # Crop 옵션
-    cropf=tk.LabelFrame(root,text="PNG: ROI Crop")
+    cropf=tk.LabelFrame(root,text=t("frame_crop","PNG: ROI Crop", lang=lang))
     cropf.grid(row=10,column=0,columnspan=2,sticky="we",padx=8,pady=(4,6))
-    tk.Checkbutton(cropf,text="저장",variable=save_crop)\
+    tk.Checkbutton(cropf,text=t("crop_save","저장", lang=lang),variable=save_crop)\
         .grid(row=0,column=0,sticky="w",padx=6)
-    tk.Checkbutton(cropf,text="Intensity rim-only도 저장",
+    tk.Checkbutton(cropf,text=t("crop_save_intensity","Intensity rim-only도 저장", lang=lang),
                    variable=save_crop_I)\
         .grid(row=0,column=1,sticky="w",padx=6)
-    tk.Checkbutton(cropf,text="ROI 바깥 마스킹",
+    tk.Checkbutton(cropf,text=t("crop_mask_outside","ROI 바깥 마스킹", lang=lang),
                    variable=mask_out)\
         .grid(row=0,column=2,sticky="w",padx=6)
-    tk.Checkbutton(cropf,text="고정 픽셀 크기",
+    tk.Checkbutton(cropf,text=t("crop_fixed","고정 픽셀 크기", lang=lang),
                    variable=crop_fixed)\
         .grid(row=0,column=3,sticky="w",padx=6)
-    tk.Label(cropf,text="W×H(px)").grid(row=0,column=4,sticky="e")
+    tk.Label(cropf,text=t("crop_wh","W×H(px)", lang=lang)).grid(row=0,column=4,sticky="e")
     tk.Entry(cropf,textvariable=crop_w_v,width=6)\
         .grid(row=0,column=5,sticky="w")
     tk.Label(cropf,text="×").grid(row=0,column=6,sticky="w")
     tk.Entry(cropf,textvariable=crop_h_v,width=6)\
         .grid(row=0,column=7,sticky="w")
-    tk.Label(cropf,text="vmin").grid(row=1,column=0,sticky="e")
+    tk.Label(cropf,text=t("crop_vmin","vmin", lang=lang)).grid(row=1,column=0,sticky="e")
     tk.Entry(cropf,textvariable=cvmin_v,width=8)\
         .grid(row=1,column=1,sticky="w")
-    tk.Label(cropf,text="vmax").grid(row=1,column=2,sticky="e")
+    tk.Label(cropf,text=t("crop_vmax","vmax", lang=lang)).grid(row=1,column=2,sticky="e")
     tk.Entry(cropf,textvariable=cvmax_v,width=8)\
         .grid(row=1,column=3,sticky="w")
 
@@ -756,32 +1018,32 @@ def gui_get_params():
     on_png_toggle()
 
     # Subset
-    subf=tk.LabelFrame(root,text="부분 추출")
+    subf=tk.LabelFrame(root,text=t("frame_subset","부분 추출", lang=lang))
     subf.grid(row=11,column=0,columnspan=2,sticky="we",padx=8,pady=(4,6))
-    tk.Checkbutton(subf,text="활성화",variable=sub_on)\
+    tk.Checkbutton(subf,text=t("subset_enable","활성화", lang=lang),variable=sub_on)\
         .grid(row=0,column=0,sticky="w",padx=6)
-    tk.Label(subf,text="Stage").grid(row=0,column=1,sticky="e")
+    tk.Label(subf,text=t("subset_stage","Stage", lang=lang)).grid(row=0,column=1,sticky="e")
     tk.Entry(subf,textvariable=sub_s,width=8)\
         .grid(row=0,column=2,sticky="w")
-    tk.Label(subf,text="Time").grid(row=0,column=3,sticky="e")
+    tk.Label(subf,text=t("subset_time","Time", lang=lang)).grid(row=0,column=3,sticky="e")
     tk.Entry(subf,textvariable=sub_t,width=8)\
         .grid(row=0,column=4,sticky="w")
 
     # QC
-    qcf = tk.LabelFrame(root, text="QC / Outlier 옵션")
+    qcf = tk.LabelFrame(root, text=t("frame_qc","QC / Outlier 옵션", lang=lang))
     qcf.grid(row=12, column=0, columnspan=2,
              sticky="we", padx=8, pady=(4,6))
-    tk.Checkbutton(qcf, text="포화 픽셀 제거",
+    tk.Checkbutton(qcf, text=t("qc_sat_filter","포화 픽셀 제거", lang=lang),
                    variable=sat_on_v)\
         .grid(row=0, column=0, sticky="w", padx=6)
-    tk.Label(qcf, text="포화 임계값")\
+    tk.Label(qcf, text=t("qc_sat_threshold","포화 임계값", lang=lang))\
         .grid(row=0, column=1, sticky="e")
     tk.Entry(qcf, textvariable=sat_thr_v, width=10)\
         .grid(row=0, column=2, sticky="w")
-    tk.Checkbutton(qcf, text="고비율(Ratio) 제외",
+    tk.Checkbutton(qcf, text=t("qc_clip_ratio","고비율(Ratio) 제외", lang=lang),
                    variable=clip_on_v)\
         .grid(row=0, column=3, sticky="w", padx=(12,6))
-    tk.Label(qcf, text="최대 비율")\
+    tk.Label(qcf, text=t("qc_clip_max","최대 비율", lang=lang))\
         .grid(row=0, column=4, sticky="e")
     tk.Entry(qcf, textvariable=clip_max_v, width=8)\
         .grid(row=0, column=5, sticky="w")
@@ -799,11 +1061,13 @@ def gui_get_params():
     def on_ok():
         img=img_v.get().strip()
         roi=roi_v.get().strip()
+        if not roi:
+            roi=os.path.join(img,"roi")
         if not img or not os.path.isdir(img):
-            messagebox.showerror("오류","유효한 이미지 경로를 선택하세요.")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_invalid_img","유효한 이미지 경로를 선택하세요.", lang=lang))
             return
-        if not roi or not os.path.isdir(roi):
-            messagebox.showerror("오류","유효한 ROI 경로를 선택하세요.")
+        if not os.path.isdir(roi):
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_invalid_roi","유효한 ROI 경로를 선택하세요.", lang=lang))
             return
         try:
             donor=int(donor_v.get())
@@ -811,7 +1075,7 @@ def gui_get_params():
             inten=int(inten_v.get())
             assert 0<=donor<=4 and 0<=fret<=4 and donor!=fret
         except:
-            messagebox.showerror("오류","채널 선택을 확인하세요.")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_channels","채널 선택을 확인하세요.", lang=lang))
             return
 
         res["ratio_mode"]=mode_v.get()
@@ -825,7 +1089,7 @@ def gui_get_params():
             assert 0.0<=d_p<=10.0 and 0.0<=f_p<=10.0
             eps=float(eps_v.get()); assert 0.0<=eps<=10.0
         except:
-            messagebox.showerror("오류","percentile/ε 입력 오류")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_percentile","percentile/ε 입력 오류", lang=lang))
             return
 
         # metric
@@ -833,7 +1097,7 @@ def gui_get_params():
             px=float(px_v.get()); assert 1e-4<=px<=100.0
             rim_um=float(rim_um_v.get()); assert 0.1<=rim_um<=20.0
         except:
-            messagebox.showerror("오류","픽셀·림 입력 오류")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_metric","픽셀·림 입력 오류", lang=lang))
             return
         try:
             ann_on=bool(ann_on_v.get())
@@ -842,7 +1106,7 @@ def gui_get_params():
             if ann_on:
                 assert 0.1<=ann_in<ann_out<=50.0
         except:
-            messagebox.showerror("오류","애뉴러스 내/외경(µm) 확인")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_annulus","애뉴러스 내/외경(µm) 확인", lang=lang))
             return
 
         # spectral
@@ -854,7 +1118,7 @@ def gui_get_params():
             cmax=float(cmax_v.get())
             assert cmax>cmin
         except:
-            messagebox.showerror("오류","FRET min/max 확인")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_fret_minmax","FRET min/max 확인", lang=lang))
             return
         try:
             sb_on=bool(sb_on_v.get())
@@ -862,7 +1126,7 @@ def gui_get_params():
             if sb_on:
                 assert 0.5<=sb_um<=200.0
         except:
-            messagebox.showerror("오류","스케일바 길이 확인")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_scalebar","스케일바 길이 확인", lang=lang))
             return
 
         # crop
@@ -871,7 +1135,7 @@ def gui_get_params():
             ch=int(float(crop_h_v.get()))
             assert 32<=cw<=8000 and 32<=ch<=8000
         except:
-            messagebox.showerror("오류","Crop W/H(px) 확인")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_crop","Crop W/H(px) 확인", lang=lang))
             return
 
         # QC
@@ -882,7 +1146,7 @@ def gui_get_params():
             clip_max=float(clip_max_v.get())
             assert clip_max>0.0
         except:
-            messagebox.showerror("오류","QC 옵션 확인")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_qc","QC 옵션 확인", lang=lang))
             return
 
         res.update(
@@ -936,7 +1200,7 @@ def gui_get_params():
         def _lock_widgets(lock=True):
             for w in root.winfo_children():
                 try:
-                    if isinstance(w, tk.LabelFrame) and w.cget("text") == "Log":
+                    if w is logf:
                         continue
                     w.configure(state=("disabled" if lock else "normal"))
                 except:
@@ -951,22 +1215,22 @@ def gui_get_params():
 
         def _worker():
             try:
-                logger.info("배치 시작…")
+                logger.info(t("log_batch_start","배치 시작…", lang=lang))
                 with contextlib.redirect_stdout(out_stream), \
                      contextlib.redirect_stderr(err_stream):
                     run_pipeline(res)
-                logger.info("모든 작업이 정상 종료되었습니다.")
+                logger.info(t("log_batch_end","모든 작업이 정상 종료되었습니다.", lang=lang))
             except Exception as e:
-                logger.error(f"작업 중 예외 발생: {e}")
+                logger.error(t("log_worker_exception","작업 중 예외 발생: {err}", lang=lang).format(err=e))
             finally:
                 _lock_widgets(False)
-                logger.info("준비 완료. 파라미터 변경 후 다시 [실행]할 수 있습니다.")
+                logger.info(t("log_ready","준비 완료. 파라미터 변경 후 다시 [실행]할 수 있습니다.", lang=lang))
 
         threading.Thread(target=_worker, daemon=True).start()
 
     # --- Log 창
     root.grid_columnconfigure(1, weight=1)
-    logf = tk.LabelFrame(root, text="Log")
+    logf = tk.LabelFrame(root, text=t("log_label","Log", lang=lang))
     logf.grid(row=14, column=0, columnspan=2,
               sticky="nsew", padx=8, pady=(0,8))
     txt = scrolledtext.ScrolledText(logf, wrap="word", height=14)
@@ -983,16 +1247,16 @@ def gui_get_params():
 
     fr=tk.Frame(root)
     fr.grid(row=13,column=0,columnspan=2,pady=10)
-    tk.Button(fr,text="실행",width=12,command=on_ok)\
+    tk.Button(fr,text=t("btn_run","실행", lang=lang),width=12,command=on_ok)\
         .pack(side="left",padx=6)
-    tk.Button(fr,text="취소",width=12,
+    tk.Button(fr,text=t("btn_cancel","취소", lang=lang),width=12,
               command=lambda:(res.update(img_dir=None),
                               root.destroy()))\
         .pack(side="left",padx=6)
 
     root.mainloop()
     if res.get("img_dir") is None:
-        raise SystemExit("취소됨")
+        raise SystemExit("Cancelled")
     return res
 
 # ===================== 빌드/정량 =====================
@@ -1023,7 +1287,7 @@ def build_pairs_by_channel(files, timelapse, donor_ch, fret_ch):
 def save_xls(rows_all, xls_dir, timelapse):
     df=pd.DataFrame(rows_all)
     if df.empty:
-        print("[주의] ROI가 없어 정량 테이블이 없습니다.")
+        print(t("msg_warn_no_roi_table","[주의] ROI가 없어 정량 테이블이 없습니다.", lang=LANG_CURRENT))
         return
     keep=["stage","time","roi","area_px",
           "ratio_mode",
@@ -1050,23 +1314,23 @@ def save_xls(rows_all, xls_dir, timelapse):
     csv =os.path.join(xls_dir,"nesprin2_fret_perROI.csv")
 
     df.to_csv(csv, index=False)
-    print(f"[저장] xls/{os.path.basename(csv)} (CSV)")
+    print(t("msg_save_csv","[저장] xls/{name} (CSV)", lang=LANG_CURRENT).format(name=os.path.basename(csv)))
 
     try:
         with pd.ExcelWriter(xlsx, engine="openpyxl") as w:
             df.to_excel(w, index=False, sheet_name="per_ROI")
             mean_mat.to_excel(w, sheet_name="ratio_mean_matrix")
             med_mat.to_excel(w, sheet_name="ratio_median_matrix")
-        print(f"[저장] xls/{os.path.basename(xlsx)} (XLSX)")
+        print(t("msg_save_xlsx","[저장] xls/{name} (XLSX)", lang=LANG_CURRENT).format(name=os.path.basename(xlsx)))
     except ModuleNotFoundError:
-        print("[경고] openpyxl 미설치 → XLSX 저장 생략, CSV만 저장되었습니다.")
+        print(t("msg_warn_no_openpyxl","[경고] openpyxl 미설치 → XLSX 저장 생략, CSV만 저장되었습니다.", lang=LANG_CURRENT))
 
 def make_name(s, t, timelapse: bool):
     return f"{s}_{t}" if (timelapse and t is not None) else s
 
 def run_pipeline(p):
     img_dir=p["img_dir"]; roi_dir=p["roi_dir"]
-    out_root=p["out_root"].strip() or os.path.join(img_dir,"RES_Nesprin2")
+    out_root=p["out_root"].strip() or os.path.join(img_dir,"RES")
     timelapse=bool(p["timelapse"])
 
     donor_ch=int(p["donor_ch"])
@@ -1075,10 +1339,10 @@ def run_pipeline(p):
 
     files=list_tifs(img_dir)
     pairs, key2paths=build_pairs_by_channel(files, timelapse, donor_ch, fret_ch)
-    print(f"[정보] 총 처리 대상 쌍: {len(pairs)}")
+    print(t("msg_info_pairs","[정보] 총 처리 대상 쌍: {count}", lang=LANG_CURRENT).format(count=len(pairs)))
 
     if not pairs:
-        print("매칭되는 (donor, fret) 채널 쌍이 없습니다.")
+        print(t("msg_no_pairs","매칭되는 (donor, fret) 채널 쌍이 없습니다.", lang=LANG_CURRENT))
         return
 
     # subset
@@ -1092,7 +1356,7 @@ def run_pipeline(p):
             pairs=[pp for pp in pairs
                    if (pp[0][0]==s_code and pp[0][1]==t_code)]
         if not pairs:
-            print("[부분추출] 조건에 맞는 쌍이 없습니다.")
+            print(t("msg_subset_none","[부분추출] 조건에 맞는 쌍이 없습니다.", lang=LANG_CURRENT))
             return
 
     res_root=ensure_dir(out_root)
@@ -1141,9 +1405,9 @@ def run_pipeline(p):
     clip_max = float(p["clip_ratio_max"])
 
     for (key, dpath, apath) in pairs:
-        s,t=key
-        tag = make_name(s,t,timelapse)
-        print(f"[처리] {tag} ...")
+        s, t_code = key
+        tag = make_name(s, t_code, timelapse)
+        print(t("msg_processing","[처리] {tag} ...", lang=LANG_CURRENT).format(tag=tag))
         D=read_2d(dpath)
         A=read_2d(apath)
 
@@ -1172,10 +1436,10 @@ def run_pipeline(p):
             if os.path.exists(cand):
                 Aonly=read_2d(cand)
 
-        polys=load_roi_polys(roi_dir, s, t, timelapse)
+        polys=load_roi_polys(roi_dir, s, t_code, timelapse)
         H,W=D.shape
         if not polys:
-            print(f"[경고] {tag}: ROI 없음 — 건너뜀")
+            print(t("msg_warn_no_roi_tag","[경고] {tag}: ROI 없음 — 건너뜀", lang=LANG_CURRENT).format(tag=tag))
             continue
 
         union=np.zeros((H,W),dtype=bool)
@@ -1469,10 +1733,12 @@ def run_pipeline(p):
     if p["out_xls"] and xls_dir:
         save_xls(rows_all, xls_dir, timelapse=timelapse)
 
-    print(f"[완료] 출력 폴더: {res_root}")
+    print(t("msg_done_outdir","[완료] 출력 폴더: {dir}", lang=LANG_CURRENT).format(dir=res_root))
 
 def main():
-    gui_get_params()
+    global LANG_CURRENT
+    LANG_CURRENT = pick_lang_from_argv(sys.argv[1:])
+    gui_get_params(lang=LANG_CURRENT)
 
 if __name__=="__main__":
     main()

@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-FRET Ratio Builder (v1-stage-parallel, inline-LOG GUI)
+FRET Ratio Builder (v1.2-stage-parallel, inline-LOG GUI)
+v1.2 patch (25.11.22)
+--영어모드 추가 : python src/FRET/fret_ratio_builder.py -mode EN 실행시
+--channel 선택 여부 가능
+
 """
 
-import os, re, glob, json, time, traceback, threading, queue
+import os, re, glob, json, time, traceback, threading, queue, sys
 import numpy as np
 import pandas as pd
 
@@ -23,6 +27,195 @@ from tkinter import scrolledtext
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import freeze_support
+
+# -------------------- Language resources --------------------
+LANG_DEFAULT = "ko"
+LANG_CURRENT = LANG_DEFAULT
+
+STRINGS = {
+    "ko": {
+        "title_app": "FRET Ratio Builder (v1.1)",
+        "lbl_img": "FRET images 경로",
+        "lbl_roi": "ROI data 경로",
+        "lbl_out": "출력 루트(선택)",
+        "btn_browse": "찾기",
+        "cb_timelapse": "Timelapse(시간 포함: SXX_TXX_X)",
+        "lbl_ratio": "Ratio 방식",
+        "ratio_fd": "FRET / Donor",
+        "ratio_df": "Donor / FRET",
+        "donor_ch": "Donor ch",
+        "acceptor_ch": "Acceptor ch",
+        "bg_group": "BG 옵션",
+        "bg_scope": "Scope",
+        "bg_mode": "Mode",
+        "bg_percentile": "percentile p(%)",
+        "per_channel_p": "채널별 p",
+        "clip_neg": "음수 clip",
+        "eps_pct": "ε percentile(denom)%",
+        "px_um": "픽셀크기 (µm/px) — scalebar용",
+        "out_group": "출력 그룹",
+        "out_xls": "XLS",
+        "out_tif": "TIF (RAT/RAT_ROI_masked)",
+        "out_png": "PNG",
+        "png_opts": "PNG 옵션",
+        "png_full": "Full 이미지 저장(grayscale)",
+        "png_crop": "Crop 이미지 저장(ROI별)",
+        "mask_out": "Crop: ROI 바깥 mask",
+        "scalebar": "Crop: 스케일바",
+        "sb_len": " 길이(µm): ",
+        "cmap": "Crop: 컬러맵",
+        "cmap_label": "Colormap:",
+        "show_cbar": "컬러바 표시",
+        "cmin": "최소값",
+        "cmax": "  최대값",
+        "png_dpi": "PNG DPI:",
+        "fixed_crop": "고정 crop 영역 크기 사용",
+        "crop_wh": "  W×H(px): ",
+        "subset_group": "부분추출 / 병렬",
+        "subset_on": "부분추출 활성화",
+        "subset_stage": "Stage(정수)",
+        "subset_time": "Time(선택; timelapse)",
+        "subset_roi": "ROI(선택)",
+        "n_workers": "프로세스 수",
+        "btn_run": "실행",
+        "btn_quit": "종료",
+        "log_label": "Log",
+        "err_title": "입력 오류",
+        "err_invalid_img": "유효한 FRET images 경로를 선택하세요.",
+        "err_invalid_roi": "유효한 ROI 경로를 선택하세요.",
+        "err_percentile": "percentile/ε는 0~10 범위로 입력하세요.",
+        "err_per_channel": "채널별 p는 0~10 범위",
+        "err_px": "픽셀크기(µm/px) 입력 오류",
+        "err_dpi": "PNG DPI는 50~1200",
+        "err_crop": "crop 픽셀 크기(32~8000)",
+        "err_stage": "Stage는 정수",
+        "err_time": "Timepoint는 정수",
+        "err_roi": "ROI는 1 이상 정수",
+        "err_workers": "병렬 프로세스 수는 1 ~ CPU 코어 이내 정수",
+        "err_channels": "Donor/Acceptor 채널 번호는 1~32 사이 서로 다르게 입력하세요",
+        "msg_run_start": "\n================= 실행 시작 =================",
+        "msg_run_end": "================= 실행 종료 =================",
+        "msg_match_none": "매칭되는 (donor=_{donor}, acceptor=_{acceptor}) 파일이 없습니다.",
+        "msg_subset_none": "[부분추출] 조건(Stage={stage})에 맞는 파일이 없습니다.",
+        "msg_info_stage": "[정보] 총 Stage={count} / 병렬 프로세스={workers}",
+        "msg_stage_error": "[오류] Stage {stage} 처리 중 예외:",
+        "msg_progress": "[진행] {done}/{total} Stage 완료: {stage}",
+        "msg_save_xlsx": "[저장] xls/{name}",
+        "msg_save_csv": "[저장] xls/{name}",
+        "msg_no_roi_table": "[주의] ROI가 없어 정량 테이블이 생성되지 않았습니다.",
+        "msg_xls_off": "[정보] XLS 출력 비활성화",
+        "msg_done": "[완료] 병렬(Stage 단위) 처리 종료 — 경과 {mm:02d}:{ss:02d}",
+        "stage_start": "[Stage {stage}] 시작",
+        "stage_item": "  - 처리: {id}",
+        "stage_no_roi": "    [경고] ROI 미발견: {stid}.json → ROI 기반 출력 스킵",
+        "stage_end": "[Stage {stage}] 종료 (총 {count} time/파일)",
+        "browse_img": "FRET images 경로 선택",
+        "browse_roi": "ROI data 경로 선택",
+        "browse_out": "출력 루트(RES 상위) 선택",
+    },
+    "en": {
+        "title_app": "FRET Ratio Builder (v13-stage-parallel + Log)",
+        "lbl_img": "FRET images folder",
+        "lbl_roi": "ROI data folder",
+        "lbl_out": "Output root (optional)",
+        "btn_browse": "Browse",
+        "cb_timelapse": "Timelapse (filename: SXX_TXX_X)",
+        "lbl_ratio": "Ratio mode",
+        "ratio_fd": "FRET / Donor",
+        "ratio_df": "Donor / FRET",
+        "donor_ch": "Donor ch",
+        "acceptor_ch": "Acceptor ch",
+        "bg_group": "BG options",
+        "bg_scope": "Scope",
+        "bg_mode": "Mode",
+        "bg_percentile": "percentile p(%)",
+        "per_channel_p": "per-channel p",
+        "clip_neg": "clip negatives",
+        "eps_pct": "ε percentile(denom)%",
+        "px_um": "Pixel size (µm/px) — for scalebar",
+        "out_group": "Outputs",
+        "out_xls": "XLS",
+        "out_tif": "TIF (RAT/RAT_ROI_masked)",
+        "out_png": "PNG",
+        "png_opts": "PNG options",
+        "png_full": "Full image grayscale only",
+        "png_crop": "Crop image ROI-only",
+        "mask_out": "Crop: mask outside ROI",
+        "scalebar": "Crop: scalebar",
+        "sb_len": " length(µm): ",
+        "cmap": "Crop: colormap",
+        "cmap_label": "Colormap:",
+        "show_cbar": "Show colorbar",
+        "cmin": "Min",
+        "cmax": "  Max",
+        "png_dpi": "PNG DPI:",
+        "fixed_crop": "Use fixed crop size",
+        "crop_wh": "  W×H(px): ",
+        "subset_group": "Subset / Parallel",
+        "subset_on": "Enable subset",
+        "subset_stage": "Stage(int)",
+        "subset_time": "Time(optional; timelapse)",
+        "subset_roi": "ROI(optional)",
+        "n_workers": "Processes",
+        "btn_run": "Run",
+        "btn_quit": "Quit",
+        "log_label": "Log",
+        "err_title": "Input error",
+        "err_invalid_img": "Select a valid FRET images folder.",
+        "err_invalid_roi": "Select a valid ROI folder.",
+        "err_percentile": "percentile/ε must be 0~10.",
+        "err_per_channel": "Per-channel p must be 0~10",
+        "err_px": "Pixel size (µm/px) input error",
+        "err_dpi": "PNG DPI must be 50~1200",
+        "err_crop": "Crop size must be 32~8000",
+        "err_stage": "Stage must be an integer",
+        "err_time": "Timepoint must be an integer",
+        "err_roi": "ROI must be integer >= 1",
+        "err_workers": "Processes must be 1..CPU cores",
+        "err_channels": "Donor/Acceptor channels must be 1~32 and different",
+        "msg_run_start": "\n================= Run start =================",
+        "msg_run_end": "================= Run end =================",
+        "msg_match_none": "No matched files for donor=_{donor}, acceptor=_{acceptor}.",
+        "msg_subset_none": "[Subset] No files match Stage={stage}.",
+        "msg_info_stage": "[Info] Stages={count} / workers={workers}",
+        "msg_stage_error": "[Error] Stage {stage} raised an exception:",
+        "msg_progress": "[Progress] {done}/{total} stages done: {stage}",
+        "msg_save_xlsx": "[Saved] xls/{name}",
+        "msg_save_csv": "[Saved] xls/{name}",
+        "msg_no_roi_table": "[Warn] No ROI → metric table not generated.",
+        "msg_xls_off": "[Info] XLS output disabled",
+        "msg_done": "[Done] Parallel (per stage) finished in {mm:02d}:{ss:02d}",
+        "stage_start": "[Stage {stage}] start",
+        "stage_item": "  - Processing: {id}",
+        "stage_no_roi": "    [Warn] ROI missing: {stid}.json → skip ROI-based outputs",
+        "stage_end": "[Stage {stage}] end (total {count} time/files)",
+        "browse_img": "Select FRET images folder",
+        "browse_roi": "Select ROI data folder",
+        "browse_out": "Select output root (RES parent)",
+    },
+}
+
+def t(key: str, default=None, lang=None) -> str:
+    lng = (lang or LANG_CURRENT or LANG_DEFAULT)
+    if lng not in STRINGS:
+        lng = LANG_DEFAULT
+    if key in STRINGS[lng]:
+        return STRINGS[lng][key]
+    if key in STRINGS.get(LANG_DEFAULT, {}):
+        return STRINGS[LANG_DEFAULT][key]
+    return default if default is not None else key
+
+def pick_lang_from_argv(argv):
+    lang = LANG_DEFAULT
+    for i, a in enumerate(argv):
+        al = str(a).lower()
+        if al in ("-mode", "--mode", "-lang", "--lang") and i + 1 < len(argv):
+            nxt = str(argv[i + 1]).lower()
+            if nxt.startswith("en"):
+                lang = "en"
+        if al in ("en", "english", "-mode=en", "--mode=en", "-lang=en", "--lang=en"):
+            lang = "en"
+    return lang
 
 # -------------------- 공통 유틸 --------------------
 def ensure_dir(p):
@@ -234,9 +427,8 @@ def save_png_colormap(img2d, out_path, vmin=None, vmax=None, cmap='jet',
 
 # -------------------- Stage 워커 --------------------
 def process_one_stage(stage_key, pairs_for_stage, p, paths):
-    """하나의 Stage(Sxx)를 순차 처리. 로그는 문자열 리스트로 반환."""
-    logs=[]
-    logs.append(f"[Stage {stage_key}] 시작")
+    logs = []
+    logs.append(t("stage_start", "[Stage {stage}] start", lang=LANG_CURRENT).format(stage=stage_key))
     (RES_ROOT, RAT32, RAT16, RROI32, RROI16, PNG_FULL, PNG_CROP) = paths
 
     scope=p["bg_scope"]; bgmode=p["bg_mode"]
@@ -254,19 +446,19 @@ def process_one_stage(stage_key, pairs_for_stage, p, paths):
     out_size_crop=(p["crop_w"], p["crop_h"]) if (out_png and opt_crop and p["fixed_crop"]) else None
 
     rows_stage=[]
-    join_st = lambda s,t: f"{s}_{t}" if (timelapse and t is not None) else s
+    join_st = lambda s_num, t_code: f"{s_num}_{t_code}" if (timelapse and t_code is not None) else s_num
 
-    for (s,t), dpath, apath in pairs_for_stage:
-        stid = join_st(s,t)
-        logs.append(f"  - 처리: {stid}")
+    for (s, t_code), dpath, apath in pairs_for_stage:
+        stid = join_st(s, t_code)
+        logs.append(t("stage_item", "  - Processing: {id}", lang=LANG_CURRENT).format(id=stid))
         D=read_2d(dpath); A=read_2d(apath)
-        polys=load_roi_polys(p["roi_dir"], s, t, timelapse=timelapse)
+        polys=load_roi_polys(p["roi_dir"], s, t_code, timelapse=timelapse)
         H,W=D.shape; union=None
         if polys:
             union=np.zeros((H,W),dtype=bool)
             for P in polys: union |= rasterize_polygon(P,(H,W))
         else:
-            logs.append(f"    [경고] ROI 미발견: {stid}.json → ROI 기반 출력 스킵")
+            logs.append(t("stage_no_roi", "    [Warn] ROI missing: {stid}.json ? skip ROI-based outputs", lang=LANG_CURRENT).format(stid=stid))
         scope_mask = (union if (scope=="roi_union" and union is not None) else None)
 
         d_p=donor_p if per_ch else p_glob
@@ -281,7 +473,7 @@ def process_one_stage(stage_key, pairs_for_stage, p, paths):
         eps = pick_epsilon(denom_vals, eps_abs=5.0, p_floor=p["eps_percentile"])
         R_full = (numer + eps) / (denom + eps)
 
-        # TIF 저장
+        # TIF ??
         if out_tif:
             imwrite(os.path.join(RAT32, f"{stid}_ratio_{suffix}.tif"), R_full.astype(np.float32))
             vals=R_full[np.isfinite(R_full)]
@@ -298,7 +490,7 @@ def process_one_stage(stage_key, pairs_for_stage, p, paths):
             lo,hi=auto_minmax(vals,1.0,99.0)
             save_png_gray(R_full, os.path.join(PNG_FULL,f"{stid}_ratio_{suffix}.png"), vmin=lo, vmax=hi, dpi=png_dpi, out_px=None)
 
-        # ROI 정량 + PNG crop
+        # ROI ?? + PNG crop
         if polys:
             R_roi = R_full.copy()
             if union is not None: R_roi[~union]=np.nan
@@ -314,7 +506,7 @@ def process_one_stage(stage_key, pairs_for_stage, p, paths):
 
             per_roi = quantify_per_roi(R_full, polys, extra_imgs={"donor":Dbc,"yfret":Abc})
             for r in per_roi:
-                r.update({"stage":s,"time":(t if timelapse else None),"eps":eps,"p":p["percentile"],
+                r.update({"stage":s,"time":(t_code if timelapse else None),"eps":eps,"p":p["percentile"],
                           "donor_p":d_p,"fret_p":a_p,"ratio_mode":p['ratio_mode'],
                           "bg_scope":p["bg_scope"],"bg_mode":p["bg_mode"],"clip_neg":p["clip_neg"],"eps_p":p["eps_percentile"]})
             rows_stage.extend(per_roi)
@@ -356,16 +548,15 @@ def process_one_stage(stage_key, pairs_for_stage, p, paths):
                         lo,hi=auto_minmax(crop_vis[np.isfinite(crop_vis)],1.0,99.0)
                         save_png_gray(crop_vis, out_png_path, vmin=lo, vmax=hi, dpi=png_dpi, out_px=out_size_crop)
 
-    logs.append(f"[Stage {stage_key}] 종료 (총 {len(pairs_for_stage)} time/파일쌍)")
+    logs.append(t("stage_end", "[Stage {stage}] end (total {count} time/files)", lang=LANG_CURRENT).format(stage=stage_key, count=len(pairs_for_stage)))
     return stage_key, rows_stage, logs
-
-# -------------------- GUI App --------------------
 CMAP_CHOICES = ["jet","turbo","viridis","plasma","magma","inferno","cividis"]
 
 class App(tk.Tk):
-    def __init__(self):
+    def __init__(self, lang=LANG_DEFAULT):
         super().__init__()
-        self.title("FRET Ratio Builder (v13-stage-parallel + Log)")
+        self.lang = lang
+        self.title(t("title_app", "FRET Ratio Builder (v13-stage-parallel + Log)", lang=self.lang))
         self.resizable(False, False)
         self.params = self._default_params()
         self._build_gui()
@@ -401,6 +592,7 @@ class App(tk.Tk):
     def _build_gui(self):
         p = self.params
         pad={'padx':8,'pady':6}
+        tr = lambda key, default=None: t(key, default, lang=self.lang)
 
         # Tk variables
         self.img_v=tk.StringVar(); self.roi_v=tk.StringVar(); self.out_v=tk.StringVar(value="")
@@ -428,122 +620,120 @@ class App(tk.Tk):
         self.subset_on=tk.BooleanVar(value=p["subset_on"]); self.subset_stage=tk.StringVar(value=""); self.subset_time=tk.StringVar(value=""); self.subset_roi=tk.StringVar(value="")
         self.n_workers_v=tk.StringVar(value=str(p["n_workers"]))
 
-        # 경로
-        tk.Label(self,text="FRET images 경로").grid(row=0,column=0,sticky="w",**pad)
+        # ??
+        tk.Label(self,text=tr("lbl_img","FRET images folder")).grid(row=0,column=0,sticky="w",**pad)
         fr=tk.Frame(self); fr.grid(row=0,column=1,sticky="ew",**pad)
         tk.Entry(fr,textvariable=self.img_v,width=50).pack(side="left")
-        tk.Button(fr,text="찾기",width=8,command=self._browse_img).pack(side="left",padx=6)
+        tk.Button(fr,text=tr("btn_browse","Browse"),width=8,command=self._browse_img).pack(side="left",padx=6)
 
-        tk.Label(self,text="ROI data 경로").grid(row=1,column=0,sticky="w",**pad)
+        tk.Label(self,text=tr("lbl_roi","ROI data folder")).grid(row=1,column=0,sticky="w",**pad)
         fr=tk.Frame(self); fr.grid(row=1,column=1,sticky="ew",**pad)
         tk.Entry(fr,textvariable=self.roi_v,width=50).pack(side="left")
-        tk.Button(fr,text="찾기",width=8,command=self._browse_roi).pack(side="left",padx=6)
+        tk.Button(fr,text=tr("btn_browse","Browse"),width=8,command=self._browse_roi).pack(side="left",padx=6)
 
-        tk.Label(self,text="출력 루트(선택)").grid(row=2,column=0,sticky="w",**pad)
+        tk.Label(self,text=tr("lbl_out","Output root (optional)")).grid(row=2,column=0,sticky="w",**pad)
         fr=tk.Frame(self); fr.grid(row=2,column=1,sticky="ew",**pad)
         tk.Entry(fr,textvariable=self.out_v,width=50).pack(side="left")
-        tk.Button(fr,text="찾기",width=8,command=self._browse_out).pack(side="left",padx=6)
+        tk.Button(fr,text=tr("btn_browse","Browse"),width=8,command=self._browse_out).pack(side="left",padx=6)
 
-        tk.Checkbutton(self, text="Timelapse(시간축 있음: SXX_TXX_X)", variable=self.tl_v, command=self._toggle_subset)\
-            .grid(row=3, column=0, columnspan=2, sticky="w", padx=8, pady=(0,2))
+        tk.Checkbutton(self, text=tr("cb_timelapse","Timelapse (filename=SXX_TXX_X)"), variable=self.tl_v, command=self._toggle_subset)            .grid(row=3, column=0, columnspan=2, sticky="w", padx=8, pady=(0,2))
 
         # Ratio
-        tk.Label(self,text="Ratio 방식").grid(row=4,column=0,sticky="w",**pad)
         fr=tk.Frame(self); fr.grid(row=4,column=1,sticky="w",**pad)
-        tk.Radiobutton(fr,text="FRET / Donor",variable=self.mode_v,value="FRET/Donor").pack(side="left",padx=4)
-        tk.Radiobutton(fr,text="Donor / FRET",variable=self.mode_v,value="Donor/FRET").pack(side="left",padx=4)
-        tk.Label(fr,text="Donor ch").pack(side="left",padx=(12,4))
+        tk.Label(self,text=tr("lbl_ratio","Ratio mode")).grid(row=4,column=0,sticky="w",**pad)
+        tk.Radiobutton(fr,text=t("ratio_fd","FRET / Donor", lang=self.lang),variable=self.mode_v,value="FRET/Donor").pack(side="left",padx=4)
+        tk.Radiobutton(fr,text=t("ratio_df","Donor / FRET", lang=self.lang),variable=self.mode_v,value="Donor/FRET").pack(side="left",padx=4)
+        tk.Label(fr,text=t("donor_ch","Donor ch", lang=self.lang)).pack(side="left",padx=(12,4))
         tk.Entry(fr,textvariable=self.donor_ch_v,width=4).pack(side="left")
-        tk.Label(fr,text="Acceptor ch").pack(side="left",padx=(10,4))
+        tk.Label(fr,text=t("acceptor_ch","Acceptor ch", lang=self.lang)).pack(side="left",padx=(10,4))
         tk.Entry(fr,textvariable=self.acceptor_ch_v,width=4).pack(side="left")
 
         # BG
-        bgf=tk.LabelFrame(self,text="BG 옵션"); bgf.grid(row=5,column=0,columnspan=2,sticky="we",padx=8,pady=(4,6))
-        tk.Label(bgf,text="Scope").grid(row=0,column=0,sticky="e",padx=6)
+        bgf=tk.LabelFrame(self,text=t("bg_group","BG options", lang=self.lang)); bgf.grid(row=5,column=0,columnspan=2,sticky="we",padx=8,pady=(4,6))
+        tk.Label(bgf,text=t("bg_scope","Scope", lang=self.lang)).grid(row=0,column=0,sticky="e",padx=6)
         ttk.Combobox(bgf,textvariable=self.scope_v,values=["full","roi_union"],width=10,state="readonly").grid(row=0,column=1,sticky="w")
-        tk.Label(bgf,text="Mode").grid(row=0,column=2,sticky="e",padx=6)
+        tk.Label(bgf,text=t("bg_mode","Mode", lang=self.lang)).grid(row=0,column=2,sticky="e",padx=6)
         ttk.Combobox(bgf,textvariable=self.bgmode_v,values=["percentile","hist-mode"],width=12,state="readonly").grid(row=0,column=3,sticky="w")
-        tk.Label(bgf,text="percentile p(%)").grid(row=1,column=0,sticky="e",padx=6)
+        tk.Label(bgf,text=t("bg_percentile","percentile p(%)", lang=self.lang)).grid(row=1,column=0,sticky="e",padx=6)
         tk.Entry(bgf,textvariable=self.p_v,width=10).grid(row=1,column=1,sticky="w")
-        tk.Checkbutton(bgf,text="채널별 p",variable=self.per_ch_v).grid(row=1,column=2,sticky="w")
-        tk.Label(bgf,text="Donor p").grid(row=1,column=3,sticky="e"); tk.Entry(bgf,textvariable=self.donor_p_v,width=8).grid(row=1,column=4,sticky="w")
-        tk.Label(bgf,text="FRET p").grid(row=1,column=5,sticky="e"); tk.Entry(bgf,textvariable=self.fret_p_v,width=8).grid(row=1,column=6,sticky="w")
-        tk.Checkbutton(bgf,text="음수 clip",variable=self.clip_v).grid(row=2,column=0,columnspan=2,sticky="w",padx=6)
-        tk.Label(bgf,text="ε 퍼센타일(denom)%").grid(row=2,column=2,sticky="e",padx=6)
+        tk.Checkbutton(bgf,text=t("per_channel_p","per-channel p", lang=self.lang),variable=self.per_ch_v).grid(row=1,column=2,sticky="w")
+        tk.Label(bgf,text=t("donor_p","Donor p", lang=self.lang)).grid(row=1,column=3,sticky="e"); tk.Entry(bgf,textvariable=self.donor_p_v,width=8).grid(row=1,column=4,sticky="w")
+        tk.Label(bgf,text=t("fret_p","FRET p", lang=self.lang)).grid(row=1,column=5,sticky="e"); tk.Entry(bgf,textvariable=self.fret_p_v,width=8).grid(row=1,column=6,sticky="w")
+        tk.Checkbutton(bgf,text=t("clip_neg","clip negatives", lang=self.lang),variable=self.clip_v).grid(row=2,column=0,columnspan=2,sticky="w",padx=6)
+        tk.Label(bgf,text=t("eps_pct","? percentile(denom)%", lang=self.lang)).grid(row=2,column=2,sticky="e",padx=6)
         tk.Entry(bgf,textvariable=self.eps_v,width=10).grid(row=2,column=3,sticky="w")
 
-        # 픽셀/스케일바
-        tk.Label(self,text="픽셀크기 (µm/px) — 스케일바용").grid(row=6,column=0,sticky="w",**pad)
+        # ??/????
+        tk.Label(self,text=tr("px_um","Pixel size (?m/px) ? for scalebar")).grid(row=6,column=0,sticky="w",**pad)
         tk.Entry(self,textvariable=self.px_v,width=12).grid(row=6,column=1,sticky="w",**pad)
 
-        # 출력 그룹
-        outf=tk.LabelFrame(self,text="출력 그룹"); outf.grid(row=7,column=0,columnspan=2,sticky="we",padx=8,pady=(6,6))
-        tk.Checkbutton(outf,text="XLS",variable=self.out_xls).grid(row=0,column=0,sticky="w",padx=8)
-        tk.Checkbutton(outf,text="TIF (RAT/RAT_ROI_masked)",variable=self.out_tif).grid(row=0,column=1,sticky="w",padx=8)
-        tk.Checkbutton(outf,text="PNG",variable=self.out_png,command=self._toggle_png_group).grid(row=0,column=2,sticky="w",padx=8)
+        # ?? ??
+        outf=tk.LabelFrame(self,text=t("out_group","Outputs", lang=self.lang)); outf.grid(row=7,column=0,columnspan=2,sticky="we",padx=8,pady=(6,6))
+        tk.Checkbutton(outf,text=t("out_xls","XLS", lang=self.lang),variable=self.out_xls).grid(row=0,column=0,sticky="w",padx=8)
+        tk.Checkbutton(outf,text=t("out_tif","TIF (RAT/RAT_ROI_masked)", lang=self.lang),variable=self.out_tif).grid(row=0,column=1,sticky="w",padx=8)
+        tk.Checkbutton(outf,text=t("out_png","PNG", lang=self.lang),variable=self.out_png,command=self._toggle_png_group).grid(row=0,column=2,sticky="w",padx=8)
 
-        # PNG 옵션
-        tk.Label(self,text="PNG 옵션").grid(row=8,column=0,sticky="nw",**pad)
+        # PNG ??
+        tk.Label(self,text=t("png_opts","PNG options", lang=self.lang)).grid(row=8,column=0,sticky="nw",**pad)
         self.imgopt_frame=tk.Frame(self); self.imgopt_frame.grid(row=8,column=1,sticky="w",**pad)
-        tk.Checkbutton(self.imgopt_frame,text="Full 이미지 저장(그레이)",variable=self.save_full).pack(anchor="w")
-        tk.Checkbutton(self.imgopt_frame,text="Crop 이미지 저장(ROI별)",variable=self.save_crop,command=self._toggle_png_group).pack(anchor="w")
-        tk.Checkbutton(self.imgopt_frame,text="Crop: ROI 바깥 마스킹",variable=self.mask_out).pack(anchor="w")
+        tk.Checkbutton(self.imgopt_frame,text=t("png_full","Full image grayscale only", lang=self.lang),variable=self.save_full).pack(anchor="w")
+        tk.Checkbutton(self.imgopt_frame,text=t("png_crop","Crop image ROI-only", lang=self.lang),variable=self.save_crop,command=self._toggle_png_group).pack(anchor="w")
+        tk.Checkbutton(self.imgopt_frame,text=t("mask_out","Crop: mask outside ROI", lang=self.lang),variable=self.mask_out).pack(anchor="w")
 
         row_sb=tk.Frame(self.imgopt_frame); row_sb.pack(anchor="w")
-        tk.Checkbutton(row_sb,text="Crop: 스케일바",variable=self.add_sb,command=self._toggle_scalebar).pack(side="left")
-        tk.Label(row_sb,text=" 길이(µm): ").pack(side="left")
+        tk.Checkbutton(row_sb,text=t("scalebar","Crop: scalebar", lang=self.lang),variable=self.add_sb,command=self._toggle_scalebar).pack(side="left")
+        tk.Label(row_sb,text=t("sb_len"," length(?m): ", lang=self.lang)).pack(side="left")
         self.e_sb=tk.Entry(row_sb,textvariable=self.sb_um_v,width=8,state=tk.DISABLED); self.e_sb.pack(side="left",padx=(0,6))
 
         row_cmap=tk.Frame(self.imgopt_frame); row_cmap.pack(anchor="w",pady=(4,0))
-        tk.Checkbutton(row_cmap,text="Crop: 컬러맵",variable=self.apply_cmap,command=self._toggle_cmap).pack(side="left",padx=(0,8))
-        tk.Label(row_cmap,text="Colormap:").pack(side="left")
+        tk.Checkbutton(row_cmap,text=t("cmap","Crop: colormap", lang=self.lang),variable=self.apply_cmap,command=self._toggle_cmap).pack(side="left",padx=(0,8))
+        tk.Label(row_cmap,text=t("cmap_label","Colormap:", lang=self.lang)).pack(side="left")
         self.dd_cmap=tk.OptionMenu(row_cmap,self.cmap_v,*CMAP_CHOICES); self.dd_cmap.config(width=8); self.dd_cmap.pack(side="left")
-        tk.Checkbutton(row_cmap,text="컬러바 표시",variable=self.show_cbar).pack(side="left",padx=8)
+        tk.Checkbutton(row_cmap,text=t("show_cbar","Show colorbar", lang=self.lang),variable=self.show_cbar).pack(side="left",padx=8)
 
         row_cm2=tk.Frame(self.imgopt_frame); row_cm2.pack(anchor="w")
-        tk.Label(row_cm2,text="최소값:").pack(side="left"); self.e_cmin=tk.Entry(row_cm2,textvariable=self.cmin_v,width=8,state=tk.DISABLED); self.e_cmin.pack(side="left")
-        tk.Label(row_cm2,text="  최대값:").pack(side="left"); self.e_cmax=tk.Entry(row_cm2,textvariable=self.cmax_v,width=8,state=tk.DISABLED); self.e_cmax.pack(side="left")
+        tk.Label(row_cm2,text=t("cmin","Min", lang=self.lang)).pack(side="left"); self.e_cmin=tk.Entry(row_cm2,textvariable=self.cmin_v,width=8,state=tk.DISABLED); self.e_cmin.pack(side="left")
+        tk.Label(row_cm2,text=t("cmax","  Max", lang=self.lang)).pack(side="left"); self.e_cmax=tk.Entry(row_cm2,textvariable=self.cmax_v,width=8,state=tk.DISABLED); self.e_cmax.pack(side="left")
 
         row_dpi=tk.Frame(self.imgopt_frame); row_dpi.pack(anchor="w",pady=(4,0))
-        tk.Label(row_dpi,text="PNG DPI:").pack(side="left"); tk.Entry(row_dpi,textvariable=self.png_dpi_v,width=6).pack(side="left")
+        tk.Label(row_dpi,text=t("png_dpi","PNG DPI:", lang=self.lang)).pack(side="left"); tk.Entry(row_dpi,textvariable=self.png_dpi_v,width=6).pack(side="left")
         row_fix=tk.Frame(self.imgopt_frame); row_fix.pack(anchor="w",pady=(4,0))
-        tk.Checkbutton(row_fix,text="고정 crop 픽셀 크기 사용",variable=self.fixed_crop,command=self._toggle_fixedcrop).pack(side="left")
-        tk.Label(row_fix,text="  W×H(px): ").pack(side="left")
+        tk.Checkbutton(row_fix,text=t("fixed_crop","Use fixed crop size", lang=self.lang),variable=self.fixed_crop,command=self._toggle_fixedcrop).pack(side="left")
+        tk.Label(row_fix,text=t("crop_wh","  W?H(px): ", lang=self.lang)).pack(side="left")
         self.e_cw=tk.Entry(row_fix,textvariable=self.crop_w_v,width=6); self.e_cw.pack(side="left")
-        tk.Label(row_fix,text=" × ").pack(side="left")
+        tk.Label(row_fix,text=" ? ").pack(side="left")
         self.e_ch=tk.Entry(row_fix,textvariable=self.crop_h_v,width=6); self.e_ch.pack(side="left")
 
-        # 부분 추출/병렬
-        subf=tk.LabelFrame(self,text="부분 추출 / 병렬"); subf.grid(row=9,column=0,columnspan=2,sticky="we",padx=8,pady=(6,6))
-        tk.Checkbutton(subf,text="부분 추출 활성화",variable=self.subset_on,command=self._toggle_subset).grid(row=0,column=0,sticky="w",padx=8,pady=6)
-        tk.Label(subf,text="Stage(필수)").grid(row=1,column=0,sticky="e",padx=8); self.e_stage=tk.Entry(subf,textvariable=self.subset_stage,width=10,state=tk.DISABLED); self.e_stage.grid(row=1,column=1,sticky="w")
-        tk.Label(subf,text="Time(선택; timelapse)").grid(row=1,column=2,sticky="e",padx=8); self.e_time=tk.Entry(subf,textvariable=self.subset_time,width=10,state=tk.DISABLED); self.e_time.grid(row=1,column=3,sticky="w")
-        tk.Label(subf,text="ROI(선택)").grid(row=1,column=4,sticky="e",padx=8); self.e_roi=tk.Entry(subf,textvariable=self.subset_roi,width=10,state=tk.DISABLED); self.e_roi.grid(row=1,column=5,sticky="w")
-        tk.Label(subf,text="프로세스 수").grid(row=0,column=2,sticky="e",padx=8); tk.Entry(subf,textvariable=self.n_workers_v,width=8).grid(row=0,column=3,sticky="w")
+        # Subset / Parallel
+        subf=tk.LabelFrame(self,text=t("subset_group","Subset / Parallel", lang=self.lang)); subf.grid(row=9,column=0,columnspan=2,sticky="we",padx=8,pady=(6,6))
+        tk.Checkbutton(subf,text=t("subset_on","Enable subset", lang=self.lang),variable=self.subset_on,command=self._toggle_subset).grid(row=0,column=0,sticky="w",padx=8,pady=6)
+        tk.Label(subf,text=t("subset_stage","Stage(int)", lang=self.lang)).grid(row=1,column=0,sticky="e",padx=8); self.e_stage=tk.Entry(subf,textvariable=self.subset_stage,width=10,state=tk.DISABLED); self.e_stage.grid(row=1,column=1,sticky="w")
+        tk.Label(subf,text=t("subset_time","Time(optional; timelapse)", lang=self.lang)).grid(row=1,column=2,sticky="e",padx=8); self.e_time=tk.Entry(subf,textvariable=self.subset_time,width=10,state=tk.DISABLED); self.e_time.grid(row=1,column=3,sticky="w")
+        tk.Label(subf,text=t("subset_roi","ROI(optional)", lang=self.lang)).grid(row=1,column=4,sticky="e",padx=8); self.e_roi=tk.Entry(subf,textvariable=self.subset_roi,width=10,state=tk.DISABLED); self.e_roi.grid(row=1,column=5,sticky="w")
+        tk.Label(subf,text=t("n_workers","Processes", lang=self.lang)).grid(row=0,column=2,sticky="e",padx=8); tk.Entry(subf,textvariable=self.n_workers_v,width=8).grid(row=0,column=3,sticky="w")
 
-        # 실행/취소 버튼
+        # ??/?? ??
         fr=tk.Frame(self); fr.grid(row=10,column=0,columnspan=2,pady=8)
-        self.btn_run = tk.Button(fr,text="실행",width=12,command=self._on_run)
+        self.btn_run = tk.Button(fr,text=t("btn_run","Run", lang=self.lang),width=12,command=self._on_run)
         self.btn_run.pack(side="left",padx=6)
-        tk.Button(fr,text="종료",width=12,command=self.destroy).pack(side="left",padx=6)
+        tk.Button(fr,text=t("btn_quit","Quit", lang=self.lang),width=12,command=self.destroy).pack(side="left",padx=6)
 
-        # ----- 하단 LOG -----
-        tk.Label(self,text="Log").grid(row=11,column=0,sticky="w",padx=8,pady=(0,2))
+        # ----- ?? LOG -----
+        tk.Label(self,text=t("log_label","Log", lang=self.lang)).grid(row=11,column=0,sticky="w",padx=8,pady=(0,2))
         self.log_txt = scrolledtext.ScrolledText(self, wrap="word", height=12, state="disabled")
         self.log_txt.grid(row=12,column=0,columnspan=2,sticky="we",padx=8,pady=(0,8))
 
-        # 상태 초기화
+        # ?? ???
         self._toggle_png_group(); self._toggle_subset()
-
     # ---------- 파일 다이얼로그 ----------
     def _browse_img(self):
-        p=filedialog.askdirectory(title="FRET images 경로 선택")
+        p=filedialog.askdirectory(title=t("browse_img","Select FRET images folder", lang=self.lang))
         if p: self.img_v.set(p)
     def _browse_roi(self):
-        p=filedialog.askdirectory(title="ROI data 경로 선택")
+        p=filedialog.askdirectory(title=t("browse_roi","Select ROI data folder", lang=self.lang))
         if p: self.roi_v.set(p)
     def _browse_out(self):
-        p=filedialog.askdirectory(title="출력 루트(RES 상위) 선택")
+        p=filedialog.askdirectory(title=t("browse_out","Select output root (RES parent)", lang=self.lang))
         if p: self.out_v.set(p)
 
     # ---------- 옵션 enable/disable ----------
@@ -598,32 +788,34 @@ class App(tk.Tk):
     # ---------- 실행 ----------
     def _collect_params(self):
         img=self.img_v.get().strip(); roi=self.roi_v.get().strip()
-        if not img or not os.path.isdir(img): raise ValueError("유효한 FRET images 경로를 선택하세요.")
-        if not roi or not os.path.isdir(roi): raise ValueError("유효한 ROI 경로를 선택하세요.")
+        if not roi:
+            roi=os.path.join(img,"roi")
+        if not img or not os.path.isdir(img): raise ValueError(t("err_invalid_img","Select a valid FRET images folder.", lang=self.lang))
+        if not os.path.isdir(roi): raise ValueError(t("err_invalid_roi","Select a valid ROI folder.", lang=self.lang))
         try:
             p=float(self.p_v.get()); assert 0.0<=p<=10.0
             eps=float(self.eps_v.get()); assert 0.0<=eps<=10.0
         except:
-            raise ValueError("percentile/ε는 0~10 범위로 입력하세요.")
+            raise ValueError(t("err_percentile","percentile/ε must be 0~10.", lang=self.lang))
         d_p=p; f_p=p
         if self.per_ch_v.get():
             try:
                 d_p=float(self.donor_p_v.get()); f_p=float(self.fret_p_v.get())
                 assert 0.0<=d_p<=10.0 and 0.0<=f_p<=10.0
             except:
-                raise ValueError("채널별 p는 0~10 범위")
+                raise ValueError(t("err_per_channel","Per-channel p must be 0~10", lang=self.lang))
 
         px_um=None
         if self.px_v.get().strip():
             try:
                 px_um=float(self.px_v.get()); assert 1e-4<=px_um<=100.0
             except:
-                raise ValueError("픽셀크기(µm/px) 입력 오류")
+                raise ValueError(t("err_px","Pixel size (µm/px) input error", lang=self.lang))
 
         try:
             dpi=int(float(self.png_dpi_v.get())); assert 50<=dpi<=1200
         except:
-            raise ValueError("PNG DPI(50~1200)")
+            raise ValueError(t("err_dpi","PNG DPI must be 50~1200", lang=self.lang))
 
         fc = bool(self.fixed_crop.get())
         cw=ch_=None
@@ -632,29 +824,29 @@ class App(tk.Tk):
                 cw=int(float(self.crop_w_v.get())); ch_=int(float(self.crop_h_v.get()))
                 assert 32<=cw<=8000 and 32<=ch_<=8000
             except:
-                raise ValueError("crop 픽셀 크기(32~8000)")
+                raise ValueError(t("err_crop","Crop size must be 32~8000", lang=self.lang))
 
         sub = {"on": bool(self.subset_on.get()), "stage": None, "time": None, "roi": None}
         if self.subset_on.get():
             try: sub["stage"]=int(self.subset_stage.get()); assert sub["stage"]>=0
-            except: raise ValueError("Stage는 정수")
+            except: raise ValueError(t("err_stage","Stage must be an integer", lang=self.lang))
             if self.tl_v.get() and self.subset_time.get().strip():
                 try: sub["time"]=int(self.subset_time.get()); assert sub["time"]>=0
-                except: raise ValueError("Timepoint는 정수")
+                except: raise ValueError(t("err_time","Timepoint must be an integer", lang=self.lang))
             if self.subset_roi.get().strip():
                 try: sub["roi"]=int(self.subset_roi.get()); assert sub["roi"]>=1
-                except: raise ValueError("ROI는 1 이상 정수")
+                except: raise ValueError(t("err_roi","ROI must be integer >= 1", lang=self.lang))
 
         try:
             n_workers = int(self.n_workers_v.get()); assert 1 <= n_workers <= max(1, (os.cpu_count() or 4))
         except:
-            raise ValueError("병렬 프로세스 수는 1 ~ CPU 코어 수 이내 정수")
+            raise ValueError(t("err_workers","Processes must be 1..CPU cores", lang=self.lang))
 
         try:
             donor_ch = int(self.donor_ch_v.get()); acceptor_ch = int(self.acceptor_ch_v.get())
             assert 1 <= donor_ch <= 32 and 1 <= acceptor_ch <= 32 and donor_ch != acceptor_ch
         except:
-            raise ValueError("Donor/Acceptor 채널 번호를 1~32 사이 서로 다르게 ?�력?�세??")
+            raise ValueError(t("err_channels","Donor/Acceptor channels must be 1~32 and different", lang=self.lang))
 
         self.params.update(
             img_dir=img, roi_dir=roi, out_root=self.out_v.get().strip(),
@@ -672,7 +864,6 @@ class App(tk.Tk):
             subset_on=sub["on"], subset_stage=sub["stage"], subset_time=sub["time"], subset_roi=sub["roi"],
             n_workers=n_workers
         )
-
     def _lock_form(self, locked: bool):
         state = tk.DISABLED if locked else tk.NORMAL
         # 모든 위젯 잠그기/풀기
@@ -687,7 +878,7 @@ class App(tk.Tk):
         try:
             self._collect_params()
         except ValueError as e:
-            messagebox.showerror("입력 오류", str(e))
+            messagebox.showerror(t("err_title","Input error", lang=self.lang), str(e))
             return
 
         # 로그 초기 한 줄
@@ -725,8 +916,8 @@ class App(tk.Tk):
                 if s_num is None or ch is None:
                     continue
                 s = fmt_stage(s_num)
-                t = fmt_time(t_num) if (timelapse and t_num is not None) else None
-                key = (s, t)
+                t_code = fmt_time(t_num) if (timelapse and t_num is not None) else None
+                key = (s, t_code)
                 if ch == donor_ch: donors[key] = path
                 elif ch == acceptor_ch: accs[key] = path
 
@@ -737,7 +928,7 @@ class App(tk.Tk):
             pairs = [((s,t), donors[(s,t)], accs[(s,t)]) for (s,t) in pair_keys]
 
             if not pairs:
-                self.log(f"매칭되는 (donor=_{donor_ch}, acceptor=_{acceptor_ch}) 쌍이 없습니다.")
+                self.log(t("msg_match_none","No matched files for donor=_{donor}, acceptor=_{acceptor}.", lang=self.lang).format(donor=donor_ch, acceptor=acceptor_ch))
                 return
 
             if p["subset_on"] and (p["subset_stage"] is not None):
@@ -748,7 +939,7 @@ class App(tk.Tk):
                     t_code=fmt_time(p["subset_time"])
                     pairs=[pp for pp in pairs if (pp[0][0]==s_code and pp[0][1]==t_code)]
                 if not pairs:
-                    self.log(f"[부분추출] 조건(Stage={s_code})에 맞는 쌍이 없습니다.")
+                    self.log(t("msg_subset_none","[Subset] No files match Stage={stage}.", lang=self.lang).format(stage=s_code))
                     return
 
             stage_groups = {}
@@ -756,7 +947,7 @@ class App(tk.Tk):
                 s = pr[0][0]
                 stage_groups.setdefault(s, []).append(pr)
             ordered_stages = sorted(stage_groups.keys(), key=lambda s: int(re.search(r'\d+', s).group()))
-            self.log(f"[정보] 총 Stage={len(ordered_stages)} / 병렬 프로세스={p['n_workers']}")
+            self.log(t("msg_info_stage","[Info] Stages={count} / workers={workers}", lang=self.lang).format(count=len(ordered_stages), workers=p["n_workers"]))
 
             freeze_support()
             paths = (RES_ROOT, RAT32, RAT16, RROI32, RROI16, PNG_FULL, PNG_CROP)
@@ -773,10 +964,10 @@ class App(tk.Tk):
                         for line in stage_logs: self.log(line)
                         all_rows.append((stage_key, rows))
                     except Exception:
-                        self.log(f"[에러] Stage {s} 처리 중 예외:")
+                        self.log(t("msg_stage_error","[Error] Stage {stage} raised an exception:", lang=self.lang).format(stage=s))
                         self.log(traceback.format_exc())
                     done += 1
-                    self.log(f"[진행] {done}/{total} Stage 완료: {s}")
+                    self.log(t("msg_progress","[Progress] {done}/{total} stages done: {stage}", lang=self.lang).format(done=done, total=total, stage=s))
 
             # 병합(순서 보장)
             rows_all=[]
@@ -816,24 +1007,26 @@ class App(tk.Tk):
                         df.to_excel(w, index=False, sheet_name="per_ROI")
                         mean_mat.to_excel(w, sheet_name="ratio_mean_matrix")
                         med_mat.to_excel(w, sheet_name="ratio_median_matrix")
-                    self.log(f"[저장] xls/{os.path.basename(xlsx)}")
-                df.to_csv(csv, index=False); self.log(f"[저장] xls/{os.path.basename(csv)}")
+                    self.log(t("msg_save_xlsx","[Saved] xls/{name}", lang=self.lang).format(name=os.path.basename(xlsx)))
+                df.to_csv(csv, index=False); self.log(t("msg_save_csv","[Saved] xls/{name}", lang=self.lang).format(name=os.path.basename(csv)))
             elif p["out_xls"] and not rows_all:
-                self.log("[주의] ROI가 없어 정량 테이블이 생성되지 않았습니다.")
+                self.log(t("msg_no_roi_table","[Warn] No ROI → metric table not generated.", lang=self.lang))
             else:
-                self.log("[정보] XLS 출력 비활성화")
+                self.log(t("msg_xls_off","[Info] XLS output disabled", lang=self.lang))
 
             dt=time.time()-t0
             mm=int(dt//60); ss=int(dt%60)
-            self.log(f"[완료] 병렬(Stage 단위) 처리 종료 — 경과 {mm:02d}:{ss:02d}")
+            self.log(t("msg_done","[Done] Parallel (per stage) finished in {mm:02d}:{ss:02d}", lang=self.lang).format(mm=mm, ss=ss))
         finally:
             # GUI 복구
             self._lock_form(False)
-            self.log("================= 실행 종료 =================\n")
+            self.log(t("msg_run_end","================= Run end =================", lang=self.lang) + "\n")
 
 # -------------------- 엔트리 포인트 --------------------
 def main():
-    app = App()
+    global LANG_CURRENT
+    LANG_CURRENT = pick_lang_from_argv(sys.argv[1:])
+    app = App(lang=LANG_CURRENT)
     app.mainloop()
 
 if __name__=="__main__":

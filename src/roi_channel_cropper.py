@@ -34,6 +34,159 @@ import matplotlib.path as mpath
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
 
+# ----------------------- Language -----------------------
+LANG_DEFAULT = "ko"
+LANG_CURRENT = LANG_DEFAULT
+
+STRINGS = {
+    "ko": {
+        "title": "ROI Channel/Phase Cropper (v2.7 + Log)",
+        "browse_raw": "Raw TIF 폴더 선택",
+        "browse_roi": "ROI 폴더 선택",
+        "browse_out": "출력 폴더 선택",
+        "lbl_raw": "Raw TIF 폴더",
+        "lbl_roi": "ROI 폴더",
+        "lbl_out": "출력 폴더",
+        "timelapse": "Timelapse(시간포함: SXX_tXX_X)",
+        "lbl_channel": "크롭할 채널 번호",
+        "scalebar": "스케일바 추가",
+        "px_size": "  픽셀크기(µm/px):",
+        "sb_len": "  바 길이(µm):",
+        "png_dpi": "PNG DPI:",
+        "fixed_crop": "고정 crop 영역",
+        "wh": "  W×H(px): ",
+        "subset_frame": "부분추출",
+        "subset_enable": "부분추출 활성화",
+        "subset_stage": "Stage(정수)",
+        "subset_time": "Time(timelapse)",
+        "subset_roi": "ROI(선택)",
+        "display_frame": "표상 & 밝기조정",
+        "lbl_color": "표상:",
+        "lbl_gamma": "감마 γ (0.0001~10)",
+        "lbl_low": "하위 cut% (0~49.9)",
+        "lbl_high": "상위 cut% (0~49.9)",
+        "more_frame": "마스크/ 출력포맷",
+        "mask_out": "ROI 바깥 Masking(검정)",
+        "save_png": "PNG 저장",
+        "save_tif16": "TIFF16 저장(정규화)",
+        "save_tif_raw": "TIFF 저장(원본+crop)",
+        "btn_run": "실행",
+        "btn_quit": "종료",
+        "log_label": "Log",
+        "err_title": "오류",
+        "err_raw": "유효한 Raw 폴더를 선택하세요",
+        "err_roi": "유효한 ROI 폴더를 선택하세요",
+        "err_out": "유효한 출력 폴더를 선택하세요",
+        "err_channel": "채널 번호는 정수(0~99)를 입력",
+        "err_dpi": "PNG DPI(50~1200) 범위 입력",
+        "err_px": "픽셀크기(µm/px) 입력 오류",
+        "err_sb": "스케일바 길이(µm) 입력 오류",
+        "err_crop": "고정 crop 영역 크기(32~8000) 범위 입력",
+        "err_stage": "부분추출 ON이면 Stage는 필수입니다",
+        "err_stage_int": "Stage는 정수(예 6 → S06)",
+        "err_time": "Timepoint는 정수(예 3 → t03)",
+        "err_roi_idx": "ROI는 1 이상 정수",
+        "err_gamma": "감마는 0.0001~10.0 범위",
+        "err_low": "하위 cut% 0~49.9",
+        "err_high": "상위 cut% 0~49.9",
+        "warn_no_map": "[스킵] 채널 ch={ch}에 해당하는 파일을 찾지 못했습니다.",
+        "warn_subset": "[부분추출] 조건(Stage={stage}, Time={time}) 일치 없음.",
+        "info_start": "[정보] 처리 예정 이미지: {n}개 채널 ch={ch}, 출력 루트: {out}",
+        "warn_no_roi": "[스킵] ROI 미존재 {tag}",
+        "warn_roi_idx": "[부분추출경고] {tag}: ROI {idx} 없음 → 스킵",
+        "warn_no_vals": "[경고] 유효 픽셀 없음: {tag}",
+        "warn_norm_fail": "[경고] 정규화 실패: {tag}",
+        "done_all": "\n[완료] 모든 크롭 작업 완료.",
+        "warn_running": "[스킵] 이미 실행 중입니다.",
+        "info_run": "[정보] ROI 크롭을 시작합니다..\n",
+        "err_exception": "\n[오류] 실행 중 예외 발생:",
+    },
+    "en": {
+        "title": "ROI Channel/Phase Cropper (v2.7 + Log)",
+        "browse_raw": "Select raw TIF folder",
+        "browse_roi": "Select ROI folder",
+        "browse_out": "Select output folder",
+        "lbl_raw": "Raw TIF folder",
+        "lbl_roi": "ROI folder",
+        "lbl_out": "Output folder",
+        "timelapse": "Timelapse (filename: SXX_tXX_X)",
+        "lbl_channel": "Channel to crop",
+        "scalebar": "Add scalebar",
+        "px_size": "  Pixel size(µm/px):",
+        "sb_len": "  Bar length(µm):",
+        "png_dpi": "PNG DPI:",
+        "fixed_crop": "Use fixed crop area",
+        "wh": "  W×H(px): ",
+        "subset_frame": "Subset",
+        "subset_enable": "Enable subset",
+        "subset_stage": "Stage(int)",
+        "subset_time": "Time(timelapse)",
+        "subset_roi": "ROI(optional)",
+        "display_frame": "Display & scaling",
+        "lbl_color": "Display:",
+        "lbl_gamma": "Gamma γ (0.0001~10)",
+        "lbl_low": "Lower cut% (0~49.9)",
+        "lbl_high": "Upper cut% (0~49.9)",
+        "more_frame": "Mask / Output format",
+        "mask_out": "Mask outside ROI (black)",
+        "save_png": "Save PNG",
+        "save_tif16": "Save TIFF16 (normalized)",
+        "save_tif_raw": "Save TIFF (raw+crop)",
+        "btn_run": "Run",
+        "btn_quit": "Quit",
+        "log_label": "Log",
+        "err_title": "Error",
+        "err_raw": "Select a valid raw folder.",
+        "err_roi": "Select a valid ROI folder.",
+        "err_out": "Select a valid output folder.",
+        "err_channel": "Channel must be int (0~99).",
+        "err_dpi": "PNG DPI must be 50~1200.",
+        "err_px": "Pixel size (µm/px) input error.",
+        "err_sb": "Scalebar length (µm) input error.",
+        "err_crop": "Fixed crop size must be 32~8000.",
+        "err_stage": "Subset ON requires Stage.",
+        "err_stage_int": "Stage must be int (e.g., 6 → S06).",
+        "err_time": "Timepoint must be int (e.g., 3 → t03).",
+        "err_roi_idx": "ROI must be integer ≥ 1.",
+        "err_gamma": "Gamma must be 0.0001~10.0.",
+        "err_low": "Lower cut% 0~49.9.",
+        "err_high": "Upper cut% 0~49.9.",
+        "warn_no_map": "[Skip] No files found for channel ch={ch}.",
+        "warn_subset": "[Subset] No files match Stage={stage}, Time={time}.",
+        "info_start": "[Info] Images to process: {n} ch={ch}, output: {out}",
+        "warn_no_roi": "[Skip] ROI missing {tag}",
+        "warn_roi_idx": "[Subset warn] {tag}: ROI {idx} missing → skip",
+        "warn_no_vals": "[Warn] No valid pixels: {tag}",
+        "warn_norm_fail": "[Warn] Normalization failed: {tag}",
+        "done_all": "\n[Done] All crop tasks finished.",
+        "warn_running": "[Skip] Already running.",
+        "info_run": "[Info] Starting ROI crop..\n",
+        "err_exception": "\n[Error] Exception during run:",
+    },
+}
+
+def t(key: str, default=None, lang=None) -> str:
+    lng = (lang or LANG_CURRENT or LANG_DEFAULT)
+    if lng not in STRINGS:
+        lng = LANG_DEFAULT
+    if key in STRINGS[lng]:
+        return STRINGS[lng][key]
+    if key in STRINGS.get(LANG_DEFAULT, {}):
+        return STRINGS[LANG_DEFAULT][key]
+    return default if default is not None else key
+
+def pick_lang_from_argv(argv):
+    lang = LANG_DEFAULT
+    for i, a in enumerate(argv):
+        al = str(a).lower()
+        if al in ("-mode", "--mode", "-lang", "--lang") and i + 1 < len(argv):
+            nxt = str(argv[i + 1]).lower()
+            if nxt.startswith("en"):
+                lang = "en"
+        if al in ("en", "english", "-mode=en", "--mode=en", "-lang=en", "--lang=en"):
+            lang = "en"
+    return lang
+
 # ----------------------- 파일 유틸 -----------------------
 
 def natural_key(s):
@@ -229,7 +382,8 @@ class TextRedirector:
 
 # ----------------------- GUI & 실행 -----------------------
 
-def gui():
+def gui(lang=None):
+    lang = lang or LANG_CURRENT
     # 설정값 컨테이너 (실행 시 검증 후 업데이트)
     cfg = {
         "raw_dir": None,
@@ -259,7 +413,7 @@ def gui():
     }
 
     root = tk.Tk()
-    root.title("ROI Channel/Phase Cropper (v2.7 + Log)")
+    root.title(t("title","ROI Channel/Phase Cropper (v2.7 + Log)", lang=lang))
     root.resizable(False, False)
 
     # --- Tk 변수들 ---
@@ -299,17 +453,17 @@ def gui():
     # --- 폴더 선택 콜백 ---
 
     def browse_raw():
-        p = filedialog.askdirectory(title="Raw TIF 폴더 선택")
+        p = filedialog.askdirectory(title=t("browse_raw","Raw TIF 폴더 선택", lang=lang))
         if p:
             raw_v.set(p)
 
     def browse_roi():
-        p = filedialog.askdirectory(title="ROI 폴더 선택")
+        p = filedialog.askdirectory(title=t("browse_roi","ROI 폴더 선택", lang=lang))
         if p:
             roi_v.set(p)
 
     def browse_out():
-        p = filedialog.askdirectory(title="출력 폴더 선택")
+        p = filedialog.askdirectory(title=t("browse_out","출력 폴더 선택", lang=lang))
         if p:
             out_v.set(p)
 
@@ -340,19 +494,19 @@ def gui():
 
     # --- UI 구성 ---
 
-    tk.Label(root, text="Raw TIF 폴더").grid(row=0, column=0, sticky="w", **pad)
+    tk.Label(root, text=t("lbl_raw","Raw TIF 폴더", lang=lang)).grid(row=0, column=0, sticky="w", **pad)
     fr = tk.Frame(root)
     fr.grid(row=0, column=1, sticky="ew", **pad)
     tk.Entry(fr, textvariable=raw_v, width=52).pack(side="left")
     tk.Button(fr, text="찾기", width=8, command=browse_raw).pack(side="left", padx=6)
 
-    tk.Label(root, text="ROI 폴더").grid(row=1, column=0, sticky="w", **pad)
+    tk.Label(root, text=t("lbl_roi","ROI 폴더", lang=lang)).grid(row=1, column=0, sticky="w", **pad)
     fr = tk.Frame(root)
     fr.grid(row=1, column=1, sticky="ew", **pad)
     tk.Entry(fr, textvariable=roi_v, width=52).pack(side="left")
     tk.Button(fr, text="찾기", width=8, command=browse_roi).pack(side="left", padx=6)
 
-    tk.Label(root, text="출력 폴더").grid(row=2, column=0, sticky="w", **pad)
+    tk.Label(root, text=t("lbl_out","출력 폴더", lang=lang)).grid(row=2, column=0, sticky="w", **pad)
     fr = tk.Frame(root)
     fr.grid(row=2, column=1, sticky="ew", **pad)
     tk.Entry(fr, textvariable=out_v, width=52).pack(side="left")
@@ -360,34 +514,34 @@ def gui():
 
     tk.Checkbutton(
         root,
-        text="Timelapse(시간축 있음: SXX_tXX_X)",
+        text=t("timelapse","Timelapse(시간축 있음: SXX_tXX_X)", lang=lang),
         variable=tl_v,
         command=toggle_subset
     ).grid(row=3, column=0, columnspan=2, sticky="w", padx=8, pady=(4, 0))
 
-    tk.Label(root, text="크롭할 채널 번호").grid(row=4, column=0, sticky="w", **pad)
+    tk.Label(root, text=t("lbl_channel","크롭할 채널 번호", lang=lang)).grid(row=4, column=0, sticky="w", **pad)
     tk.Entry(root, textvariable=ch_v, width=8).grid(row=4, column=1, sticky="w", **pad)
 
     # 스케일바
     fr = tk.Frame(root)
     fr.grid(row=5, column=0, columnspan=2, sticky="w", **pad)
-    tk.Checkbutton(fr, text="스케일바 추가", variable=scb_v, command=toggle_scalebar)\
+    tk.Checkbutton(fr, text=t("scalebar","스케일바 추가", lang=lang), variable=scb_v, command=toggle_scalebar)\
         .pack(side="left")
-    tk.Label(fr, text="  픽셀크기(µm/px):").pack(side="left")
+    tk.Label(fr, text=t("px_size","  픽셀크기(µm/px):", lang=lang)).pack(side="left")
     e_px = tk.Entry(fr, textvariable=px_v, width=10, state=tk.DISABLED)
     e_px.pack(side="left")
-    tk.Label(fr, text="  바 길이(µm):").pack(side="left")
+    tk.Label(fr, text=t("sb_len","  바 길이(µm):", lang=lang)).pack(side="left")
     e_sbl = tk.Entry(fr, textvariable=sbl_v, width=8, state=tk.DISABLED)
     e_sbl.pack(side="left")
 
     # PNG 옵션
     fr = tk.Frame(root)
     fr.grid(row=6, column=0, columnspan=2, sticky="w", **pad)
-    tk.Label(fr, text="PNG DPI:").pack(side="left")
+    tk.Label(fr, text=t("png_dpi","PNG DPI:", lang=lang)).pack(side="left")
     tk.Entry(fr, textvariable=dpi_v, width=6).pack(side="left", padx=(4, 12))
-    tk.Checkbutton(fr, text="고정 crop 픽셀", variable=fxc_v, command=toggle_fixed)\
+    tk.Checkbutton(fr, text=t("fixed_crop","고정 crop 영역", lang=lang), variable=fxc_v, command=toggle_fixed)\
         .pack(side="left")
-    tk.Label(fr, text="  W×H(px): ").pack(side="left")
+    tk.Label(fr, text=t("wh","  W×H(px): ", lang=lang)).pack(side="left")
     e_cw = tk.Entry(fr, textvariable=cw_v, width=6)
     e_cw.pack(side="left")
     tk.Label(fr, text=" × ").pack(side="left")
@@ -395,67 +549,67 @@ def gui():
     e_chh.pack(side="left")
 
     # 부분 추출
-    sub = tk.LabelFrame(root, text="부분 추출")
+    sub = tk.LabelFrame(root, text=t("subset_frame","부분추출", lang=lang))
     sub.grid(row=7, column=0, columnspan=2, sticky="we", padx=8, pady=(6, 6))
     tk.Checkbutton(
-        sub, text="부분 추출 활성화", variable=subset_on, command=toggle_subset
+        sub, text=t("subset_enable","부분 추출 활성화", lang=lang), variable=subset_on, command=toggle_subset
     ).grid(row=0, column=0, sticky="w", padx=8, pady=6)
 
-    tk.Label(sub, text="Stage(필수)").grid(row=1, column=0, sticky="e", padx=6)
+    tk.Label(sub, text=t("subset_stage","Stage(필수)", lang=lang)).grid(row=1, column=0, sticky="e", padx=6)
     e_stage = tk.Entry(sub, textvariable=stage_v, width=8, state=tk.DISABLED)
     e_stage.grid(row=1, column=1, sticky="w")
 
-    tk.Label(sub, text="Time(timelapse)").grid(row=1, column=2, sticky="e", padx=6)
+    tk.Label(sub, text=t("subset_time","Time(timelapse)", lang=lang)).grid(row=1, column=2, sticky="e", padx=6)
     e_time = tk.Entry(sub, textvariable=time_v, width=8, state=tk.DISABLED)
     e_time.grid(row=1, column=3, sticky="w")
 
-    tk.Label(sub, text="ROI(선택)").grid(row=1, column=4, sticky="e", padx=6)
+    tk.Label(sub, text=t("subset_roi","ROI(선택)", lang=lang)).grid(row=1, column=4, sticky="e", padx=6)
     e_roi = tk.Entry(sub, textvariable=roi_vv, width=8, state=tk.DISABLED)
     e_roi.grid(row=1, column=5, sticky="w")
 
     # 색상 & 톤
-    newf = tk.LabelFrame(root, text="색상 & 톤 조정")
+    newf = tk.LabelFrame(root, text=t("display_frame","색상 & 톤 조정", lang=lang))
     newf.grid(row=8, column=0, columnspan=2, sticky="we", padx=8, pady=(6, 6))
 
-    tk.Label(newf, text="색상:").grid(row=0, column=0, sticky="e", padx=6, pady=4)
+    tk.Label(newf, text=t("lbl_color","색상:", lang=lang)).grid(row=0, column=0, sticky="e", padx=6, pady=4)
     tk.OptionMenu(newf, color_v, *list(COLOR_MAP.keys()))\
         .grid(row=0, column=1, sticky="w")
 
-    tk.Label(newf, text="감마 γ (0.0001~10)").grid(row=0, column=2, sticky="e", padx=6)
+    tk.Label(newf, text=t("lbl_gamma","감마 γ (0.0001~10)", lang=lang)).grid(row=0, column=2, sticky="e", padx=6)
     e_gamma = tk.Entry(newf, textvariable=gamma_v, width=10)
     e_gamma.grid(row=0, column=3, sticky="w")
 
-    tk.Label(newf, text="하위 컷 % (0~49.9)").grid(row=1, column=0, sticky="e", padx=6)
+    tk.Label(newf, text=t("lbl_low","하위 컷 % (0~49.9)", lang=lang)).grid(row=1, column=0, sticky="e", padx=6)
     e_low = tk.Entry(newf, textvariable=lowcut_v, width=10)
     e_low.grid(row=1, column=1, sticky="w")
 
-    tk.Label(newf, text="상위 컷 % (0~49.9)").grid(row=1, column=2, sticky="e", padx=6)
+    tk.Label(newf, text=t("lbl_high","상위 컷 % (0~49.9)", lang=lang)).grid(row=1, column=2, sticky="e", padx=6)
     e_high = tk.Entry(newf, textvariable=highcut_v, width=10)
     e_high.grid(row=1, column=3, sticky="w")
 
     # 마스킹 & 저장 포맷
-    more = tk.LabelFrame(root, text="마스킹 / 저장 포맷")
+    more = tk.LabelFrame(root, text=t("more_frame","마스킹 / 저장 포맷", lang=lang))
     more.grid(row=9, column=0, columnspan=2, sticky="we", padx=8, pady=(6, 6))
 
-    tk.Checkbutton(more, text="ROI 바깥 Masking(검정)", variable=mask_v)\
+    tk.Checkbutton(more, text=t("mask_out","ROI 바깥 Masking(검정)", lang=lang), variable=mask_v)\
         .grid(row=0, column=0, sticky="w", padx=8)
-    tk.Checkbutton(more, text="PNG 저장", variable=save_png)\
+    tk.Checkbutton(more, text=t("save_png","PNG 저장", lang=lang), variable=save_png)\
         .grid(row=0, column=1, sticky="w", padx=8)
-    tk.Checkbutton(more, text="TIFF16 저장(정규화)", variable=save_tiff16)\
+    tk.Checkbutton(more, text=t("save_tif16","TIFF16 저장(정규화)", lang=lang), variable=save_tiff16)\
         .grid(row=0, column=2, sticky="w", padx=8)
-    tk.Checkbutton(more, text="TIFF 저장(원본값 crop)", variable=save_tiff_raw)\
+    tk.Checkbutton(more, text=t("save_tif_raw","TIFF 저장(원본값 crop)", lang=lang), variable=save_tiff_raw)\
         .grid(row=0, column=3, sticky="w", padx=8)
 
     # 실행 / 종료 버튼
     fb = tk.Frame(root)
     fb.grid(row=10, column=0, columnspan=2, pady=10)
-    btn_run = tk.Button(fb, text="실행", width=12)
+    btn_run = tk.Button(fb, text=t("btn_run","실행", lang=lang), width=12)
     btn_run.pack(side="left", padx=6)
-    btn_quit = tk.Button(fb, text="종료", width=12, command=root.destroy)
+    btn_quit = tk.Button(fb, text=t("btn_quit","종료", lang=lang), width=12, command=root.destroy)
     btn_quit.pack(side="left", padx=6)
 
     # Log 영역
-    tk.Label(root, text="Log").grid(row=11, column=0, sticky="nw", padx=8, pady=(0, 0))
+    tk.Label(root, text=t("log_label","Log", lang=lang)).grid(row=11, column=0, sticky="nw", padx=8, pady=(0, 0))
     log_text = scrolledtext.ScrolledText(root, height=10, width=90)
     log_text.grid(row=11, column=1, sticky="we", padx=8, pady=(0, 8))
 
@@ -473,13 +627,13 @@ def gui():
         out = out_v.get().strip()
 
         if not raw or not os.path.isdir(raw):
-            messagebox.showerror("오류", "유효한 Raw 폴더를 선택하세요.")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_raw","유효한 Raw 폴더를 선택하세요", lang=lang))
             return False
         if not roi or not os.path.isdir(roi):
-            messagebox.showerror("오류", "유효한 ROI 폴더를 선택하세요.")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_roi","유효한 ROI 폴더를 선택하세요", lang=lang))
             return False
         if not out or not os.path.isdir(out):
-            messagebox.showerror("오류", "유효한 출력 폴더를 선택하세요.")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_out","유효한 출력 폴더를 선택하세요", lang=lang))
             return False
 
         # 채널
@@ -487,7 +641,7 @@ def gui():
             ch = int(ch_v.get())
             assert 0 <= ch <= 99
         except:
-            messagebox.showerror("오류", "채널 번호를 정수(0~99)로 입력")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_channel","채널 번호는 정수(0~99)를 입력", lang=lang))
             return False
 
         # PNG DPI
@@ -495,7 +649,7 @@ def gui():
             dpi = int(float(dpi_v.get()))
             assert 50 <= dpi <= 1200
         except:
-            messagebox.showerror("오류", "PNG DPI(50~1200) 범위로 입력")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_dpi","PNG DPI(50~1200) 범위 입력", lang=lang))
             return False
 
         # 스케일바
@@ -506,13 +660,13 @@ def gui():
                 px_um = float(px_v.get())
                 assert 1e-4 <= px_um <= 100.0
             except:
-                messagebox.showerror("오류", "픽셀크기(µm/px) 입력 오류")
+                messagebox.showerror(t("err_title","오류", lang=lang), t("err_px","픽셀크기(µm/px) 입력 오류", lang=lang))
                 return False
             try:
                 sb_len = float(sbl_v.get())
                 assert 0.1 <= sb_len <= 1e6
             except:
-                messagebox.showerror("오류", "스케일바 길이(µm) 입력 오류")
+                messagebox.showerror(t("err_title","오류", lang=lang), t("err_sb","스케일바 길이(µm) 입력 오류", lang=lang))
                 return False
 
         # 고정 crop
@@ -524,9 +678,8 @@ def gui():
                 assert 32 <= cw <= 8000 and 32 <= chh <= 8000
                 out_px = (cw, chh)
             except:
-                messagebox.showerror(
-                    "오류", "고정 crop 픽셀 크기(32~8000) 범위로 입력"
-                )
+                messagebox.showerror(t("err_title","오류", lang=lang),
+                                     t("err_crop","고정 crop 영역 크기(32~8000) 범위 입력", lang=lang))
                 return False
         else:
             cw = chh = None
@@ -540,17 +693,15 @@ def gui():
         if ss_on:
             stxt = stage_v.get().strip()
             if not stxt:
-                messagebox.showerror(
-                    "오류", "부분 추출 ON일 때 Stage는 필수입니다."
-                )
+                messagebox.showerror(t("err_title","오류", lang=lang),
+                                     t("err_stage","부분추출 ON이면 Stage는 필수입니다", lang=lang))
                 return False
             try:
                 s_val = int(stxt)
                 assert s_val >= 0
             except:
-                messagebox.showerror(
-                    "오류", "Stage는 정수(예: 6 → S06)"
-                )
+                messagebox.showerror(t("err_title","오류", lang=lang),
+                                     t("err_stage_int","Stage는 정수(예 6 → S06)", lang=lang))
                 return False
 
             if tl_v.get():
@@ -560,9 +711,8 @@ def gui():
                         t_val = int(ttxt)
                         assert t_val >= 0
                     except:
-                        messagebox.showerror(
-                            "오류", "Timepoint는 정수(예: 3 → t03)"
-                        )
+                        messagebox.showerror(t("err_title","오류", lang=lang),
+                                             t("err_time","Timepoint는 정수(예 3 → t03)", lang=lang))
                         return False
 
             rtxt = roi_vv.get().strip()
@@ -571,9 +721,8 @@ def gui():
                     r_val = int(rtxt)
                     assert r_val >= 1
                 except:
-                    messagebox.showerror(
-                        "오류", "ROI는 1 이상의 정수"
-                    )
+                    messagebox.showerror(t("err_title","오류", lang=lang),
+                                         t("err_roi_idx","ROI는 1 이상 정수", lang=lang))
                     return False
 
         # 톤 컨트롤
@@ -581,21 +730,21 @@ def gui():
             gamma = float(gamma_v.get())
             assert 1e-4 <= gamma <= 10.0
         except:
-            messagebox.showerror("오류", "감마는 0.0001~10.0 범위")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_gamma","감마는 0.0001~10.0 범위", lang=lang))
             return False
 
         try:
             low_cut = float(lowcut_v.get())
             assert 0.0 <= low_cut < 50.0
         except:
-            messagebox.showerror("오류", "하위 컷%는 0~49.9")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_low","하위 cut% 0~49.9", lang=lang))
             return False
 
         try:
             high_cut = float(highcut_v.get())
             assert 0.0 <= high_cut < 50.0
         except:
-            messagebox.showerror("오류", "상위 컷%는 0~49.9")
+            messagebox.showerror(t("err_title","오류", lang=lang), t("err_high","상위 cut% 0~49.9", lang=lang))
             return False
 
         cfg.update(
@@ -670,7 +819,7 @@ def gui():
             fmap = build_map(files, ch_select, timelapse=timelapse)
 
             if not fmap:
-                print(f"[알림] 채널 ch={ch_select}에 해당하는 파일을 찾지 못했습니다.")
+                print(t("warn_no_map","[스킵] 채널 ch={ch_select}에 해당하는 파일을 찾지 못했습니다.", lang=LANG_CURRENT).format(ch=ch_select))
                 return
 
             # 부분 추출 필터
@@ -686,10 +835,8 @@ def gui():
                         if (k[0] == s_code and k[1] == t_code)
                     }
                 if not fmap:
-                    print(
-                        f"[부분추출] 조건(Stage={s_code}, "
-                        f"Time={'ALL' if (not timelapse or ss_time is None) else t_code}) 일치 없음."
-                    )
+                    print(t("warn_subset","[부분추출] 조건(Stage={stage}, Time={time}) 일치 없음.", lang=LANG_CURRENT)
+                          .format(stage=s_code, time=("ALL" if (not timelapse or ss_time is None) else t_code)))
                     return
 
             # 출력 폴더
@@ -704,14 +851,12 @@ def gui():
             if do_tif_raw:
                 os.makedirs(tif_dir, exist_ok=True)
 
-            print(
-                f"[정보] 대상 이미지: {len(fmap)}개, "
-                f"채널 ch={ch_select}, 출력 루트: {out_root}"
-            )
+            print(t("info_start","[정보] 처리 예정 이미지: {n}개 채널 ch={ch}, 출력 루트: {out}", lang=LANG_CURRENT)
+                  .format(n=len(fmap), ch=ch_select, out=out_root))
 
             pad_ratio = 0.05  # ROI 주변 여유 5% (최소 10px)
 
-            for (s, t), ipath in sorted(fmap.items()):
+            for (s, t_code), ipath in sorted(fmap.items()):
                 raw_full = imread(ipath)
                 if raw_full.ndim > 2:
                     # 첫 채널만 사용 (multi-channel TIF 대응)
@@ -720,11 +865,11 @@ def gui():
                 img = raw_full.astype(np.float32, copy=False)
                 H, W = img.shape
 
-                polys = load_roi_polys(roi_dir, s, t, timelapse=timelapse)
-                keytag = f"{s}{('_' + t) if (timelapse and t) else ''}"
+                polys = load_roi_polys(roi_dir, s, t_code, timelapse=timelapse)
+                keytag = f"{s}{('_' + t_code) if (timelapse and t_code) else ''}"
 
                 if not polys:
-                    print(f"[스킵] ROI 미존재: {keytag}")
+                    print(t("warn_no_roi","[스킵] ROI 미존재 {tag}", lang=LANG_CURRENT).format(tag=keytag))
                     continue
 
                 roi_indices = list(range(1, len(polys) + 1))
@@ -733,7 +878,7 @@ def gui():
                     if 1 <= k <= len(polys):
                         roi_indices = [k]
                     else:
-                        print(f"[부분추출 경고] {keytag}: ROI {k} 없음 → 스킵")
+                        print(t("warn_roi_idx","[부분추출경고] {tag}: ROI {idx} 없음 → 스킵", lang=LANG_CURRENT).format(tag=keytag, idx=k))
                         roi_indices = []
 
                 for i in roi_indices:
@@ -759,7 +904,7 @@ def gui():
                     # ----- 정규화 (PNG/TIFF16) -----
                     vals = crop_f32[np.isfinite(crop_f32)]
                     if vals.size == 0:
-                        print(f"[경고] 유효 픽셀 없음: {keytag}_roi{i}")
+                        print(t("warn_no_vals","[경고] 유효 픽셀 없음: {tag}", lang=LANG_CURRENT).format(tag=f"{keytag}_roi{i}"))
                         continue
 
                     lo = np.percentile(vals, low_cut)
@@ -770,7 +915,7 @@ def gui():
                         hi = float(np.nanmax(vals))
 
                     if (not np.isfinite(lo)) or (not np.isfinite(hi)) or (hi <= lo):
-                        print(f"[경고] 정규화 실패: {keytag}_roi{i}")
+                        print(t("warn_norm_fail","[경고] 정규화 실패: {tag}", lang=LANG_CURRENT).format(tag=f"{keytag}_roi{i}"))
                         continue
 
                     norm = np.clip((crop_f32 - lo) / (hi - lo), 0.0, 1.0)
@@ -823,11 +968,11 @@ def gui():
                         imwrite(t_path, raw_out)
                         print(f"[TIFF]  {os.path.basename(t_path)}")
 
-            print("\n[완료] 모든 크롭 저장 완료.")
+            print(t("done_all","\n[완료] 모든 크롭 작업 완료.", lang=LANG_CURRENT))
 
         except Exception as e:
             import traceback
-            print("\n[오류] 실행 중 예외 발생:", e)
+            print(t("err_exception","\n[오류] 실행 중 예외 발생:", lang=LANG_CURRENT), e)
             traceback.print_exc()
 
         finally:
@@ -845,7 +990,7 @@ def gui():
 
     def start_run():
         if running["flag"]:
-            print("[알림] 이미 실행 중입니다.")
+            print(t("warn_running","[스킵] 이미 실행 중입니다.", lang=LANG_CURRENT))
             return
         # Log 초기화
         log_text.delete("1.0", tk.END)
@@ -853,7 +998,7 @@ def gui():
             return
         running["flag"] = True
         btn_run.config(state=tk.DISABLED)
-        print("[정보] ROI 크롭을 시작합니다...\n")
+        print(t("info_run","[정보] ROI 크롭을 시작합니다..\n", lang=LANG_CURRENT))
         # 설정 snapshot 전달
         p = dict(cfg)
         th = threading.Thread(target=run_crop, args=(p,), daemon=True)
@@ -869,7 +1014,9 @@ def gui():
     root.mainloop()
 
 def main():
-    gui()
+    global LANG_CURRENT
+    LANG_CURRENT = pick_lang_from_argv(sys.argv[1:])
+    gui(lang=LANG_CURRENT)
 
 if __name__ == "__main__":
     main()
