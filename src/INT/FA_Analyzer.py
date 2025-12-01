@@ -309,6 +309,9 @@ class FAAnalyzerApp:
         self.current_img = None
         self.current_stats = (0, 0, 0) 
         
+        # Performance Optimization: Caching
+        self.analysis_cache = {} # Key: (cell_idx, param_tuple), Value: result
+        
         self._setup_ui()
         
     def _setup_ui(self):
@@ -401,7 +404,13 @@ class FAAnalyzerApp:
             ent.bind('<Return>', lambda e: self._on_param_update(None))
             scl = tk.Scale(inner, variable=var, from_=from_, to=to_, resolution=res, orient="horizontal", showvalue=0)
             scl.pack(side='left', fill='x', expand=True)
-            scl.config(command=self._on_param_update) 
+            
+            # OPTIMIZATION: 
+            # 1. 'command' (drag) -> _on_slider_interaction (Live update ONLY for single cell)
+            # 2. 'ButtonRelease-1' -> _on_param_update (Final update for Global Mode)
+            scl.config(command=self._on_slider_interaction)
+            scl.bind("<ButtonRelease-1>", self._on_param_update)
+            
             return ent, scl
 
         add_control("Threshold Alpha", self.alpha_var, 0.1, 10.0, 0.1)
@@ -630,6 +639,8 @@ class FAAnalyzerApp:
                     if mat_path:
                         self.current_mat_polys = extract_matlab_boundaries(mat_path)
         
+        # Clear cache on new file load
+        self.analysis_cache = {}
         self._update_plot()
 
     def _on_canvas_click(self, event):
@@ -658,6 +669,15 @@ class FAAnalyzerApp:
             self._params_to_gui(self.global_params)
             
         self._update_plot()
+
+    def _on_slider_interaction(self, val):
+        """
+        Called continuously while dragging slider.
+        - Global Mode: Do NOTHING (wait for release to avoid lag).
+        - Cell Mode: Update LIVE (fast enough due to caching).
+        """
+        if self.selected_cell_idx is not None:
+            self._on_param_update()
 
     def _on_param_update(self, event=None):
         if self.current_idx < 0: return
@@ -701,39 +721,62 @@ class FAAnalyzerApp:
             else:
                 params = self.global_params
             
-            config = self._convert_um_to_px_config(params)
+            # CACHING LOGIC
+            # Create a hashable key for the current state
+            # We need: cell_index, and all parameters that affect analysis
+            param_key = (
+                params['alpha'],
+                params['min_area_um'],
+                params['max_area_um'],
+                params['close_radius'],
+                params.get('subtract_bg', True),
+                self.current_stats # Stats also affect result (bg_val)
+            )
             
-            xs = roi_poly[:, 0]
-            ys = roi_poly[:, 1]
-            x_min, x_max = int(np.floor(xs.min())), int(np.ceil(xs.max()))
-            y_min, y_max = int(np.floor(ys.min())), int(np.ceil(ys.max()))
+            cache_key = (i, param_key)
             
-            pad = 5
-            x_min = max(0, x_min - pad)
-            x_max = min(img.shape[1], x_max + pad)
-            y_min = max(0, y_min - pad)
-            y_max = min(img.shape[0], y_max + pad)
-            
-            img_crop = img[y_min:y_max, x_min:x_max]
-            poly_crop = roi_poly.copy()
-            poly_crop[:, 0] -= x_min
-            poly_crop[:, 1] -= y_min
-            mask_crop = np.zeros(img_crop.shape, dtype=bool)
-            rr, cc = polygon(poly_crop[:,1], poly_crop[:,0], img_crop.shape)
-            mask_crop[rr, cc] = True
-            
-            res, th_val, _, _ = analyze_fa_crop(img_crop, mask_crop, config, self.current_stats)
-            
-            # Shift Results back to Global Frame
-            for cat in res:
-                for item in res[cat]:
-                    item['contour'][:, 0] += y_min
-                    item['contour'][:, 1] += x_min
+            if cache_key in self.analysis_cache:
+                res, th_val, _, _ = self.analysis_cache[cache_key]
+            else:
+                config = self._convert_um_to_px_config(params)
+                
+                xs = roi_poly[:, 0]
+                ys = roi_poly[:, 1]
+                x_min, x_max = int(np.floor(xs.min())), int(np.ceil(xs.max()))
+                y_min, y_max = int(np.floor(ys.min())), int(np.ceil(ys.max()))
+                
+                pad = 5
+                x_min = max(0, x_min - pad)
+                x_max = min(img.shape[1], x_max + pad)
+                y_min = max(0, y_min - pad)
+                y_max = min(img.shape[0], y_max + pad)
+                
+                img_crop = img[y_min:y_max, x_min:x_max]
+                poly_crop = roi_poly.copy()
+                poly_crop[:, 0] -= x_min
+                poly_crop[:, 1] -= y_min
+                mask_crop = np.zeros(img_crop.shape, dtype=bool)
+                rr, cc = polygon(poly_crop[:,1], poly_crop[:,0], img_crop.shape)
+                mask_crop[rr, cc] = True
+                
+                res, th_val, bw, labeled_img = analyze_fa_crop(img_crop, mask_crop, config, self.current_stats)
+                
+                # Shift Results back to Global Frame immediately for caching consistency
+                for cat in res:
+                    for item in res[cat]:
+                        item['contour'][:, 0] += y_min
+                        item['contour'][:, 1] += x_min
+                
+                # Store in cache
+                self.analysis_cache[cache_key] = (res, th_val, bw, labeled_img)
+
+            # NOTE: We already shifted contours in the calculation block above (or retrieved shifted ones)
+            # So we don't need to shift them again here.
             
             edge_c = 'cyan' if i == self.selected_cell_idx else 'yellow'
             line_w = 2.5 if i == self.selected_cell_idx else 1.0
             
-            patch = mpatches.Polygon(roi_poly, closed=True, edgecolor=edge_c, facecolor='none', linewidth=line_w, linestyle='-')
+            patch = mpatches.Polygon(roi_poly, closed=True, edgecolor=edge_c, facecolor='none', linewidth=1, linestyle='-')
             self.ax.add_patch(patch)
             self.ax.text(roi_poly[:,0].mean(), roi_poly[:,1].mean(), str(i+1), color=edge_c, fontweight='bold')
             
@@ -748,8 +791,6 @@ class FAAnalyzerApp:
         self.ax.set_title(f"{s_tag} | Mode: {mode_str}")
         self.ax.axis('off')
         self.canvas.draw()
-
-    # REMOVED: _save_current_view (Quick Snapshot)
 
     def _run_single_process(self):
         if self.current_img is None: return
@@ -964,387 +1005,206 @@ class FAAnalyzerApp:
         except Exception as e:
             traceback.print_exc()
             log(f"Error: {e}")
-            messagebox.showerror("Error", str(e))
 
     def _merge_all_csvs_report(self):
         out_root = self.out_dir.get()
-        if not out_root: return
-        
         indiv_dir = os.path.join(out_root, "individual_results")
         if not os.path.exists(indiv_dir):
-            messagebox.showinfo("Info", "No individual_results folder found.")
+            messagebox.showinfo("Info", "No individual results found.")
             return
             
-        all_csvs = glob.glob(os.path.join(indiv_dir, "*_results.csv"))
-        if not all_csvs:
-            messagebox.showinfo("Info", "No CSV files found to merge.")
+        csvs = glob.glob(os.path.join(indiv_dir, "*.csv"))
+        if not csvs:
+            messagebox.showinfo("Info", "No CSV files found.")
             return
-        
-        try:
-            import openpyxl
-        except ImportError:
-            messagebox.showerror("Error", "Install 'openpyxl' (pip install openpyxl)")
-            return
-
-        try:
-            dfs = []
-            for f in all_csvs:
-                dfs.append(pd.read_csv(f))
             
-            master_df = pd.concat(dfs, ignore_index=True)
-            master_path = os.path.join(out_root, "FA_Results_Master.xlsx")
+        dfs = []
+        for c in csvs:
+            try:
+                dfs.append(pd.read_csv(c))
+            except: pass
             
-            target_col = 'Mean_Intensity_Corr' if 'Mean_Intensity_Corr' in master_df.columns else 'Mean_Intensity'
+        if dfs:
+            full_df = pd.concat(dfs, ignore_index=True)
             
-            with pd.ExcelWriter(master_path, engine='openpyxl') as writer:
-                master_df.to_excel(writer, sheet_name='Raw_Data', index=False)
-                
-                cell_summary = master_df.groupby(['File', 'Cell_ID']).agg({
-                    'Area_um2': ['count', 'mean', 'sum'],
-                    target_col: 'mean'
-                }).reset_index()
-                
-                cell_summary.columns = ['File', 'Cell_ID', 'FA_Count', 'Mean_Area_um2', 'Total_Area_um2', 'Mean_Intensity_Avg']
-                cell_summary.to_excel(writer, sheet_name='Cell_Summary', index=False)
-                
-                master_df['FA_Index'] = master_df.groupby(['File', 'Cell_ID']).cumcount() + 1
-                master_df['UniqueID'] = master_df['File'] + "_c" + master_df['Cell_ID'].astype(str)
-                
-                mat_int = master_df.pivot_table(index='UniqueID', columns='FA_Index', values=target_col)
-                mat_int.to_excel(writer, sheet_name='Matrix_Mean_Int')
-                
-                mat_area = master_df.pivot_table(index='UniqueID', columns='FA_Index', values='Area_um2')
-                mat_area.to_excel(writer, sheet_name='Matrix_Area_um2')
-
-            messagebox.showinfo("Success", f"Generated MATLAB-style report:\n{master_path}")
-            os.startfile(master_path)
+            # Summary Pivot
+            summary = full_df.groupby(['File', 'Category']).size().unstack(fill_value=0)
+            if 'OK' not in summary.columns: summary['OK'] = 0
+            if 'Large' not in summary.columns: summary['Large'] = 0
+            if 'Small' not in summary.columns: summary['Small'] = 0
             
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
+            summary['Total_Count'] = summary['OK'] + summary['Large'] + summary['Small']
+            
+            # Save Excel
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            out_xls = os.path.join(out_root, f"Batch_Summary_{timestamp}.xlsx")
+            
+            with pd.ExcelWriter(out_xls) as writer:
+                summary.to_excel(writer, sheet_name='Summary_Counts')
+                full_df.to_excel(writer, sheet_name='All_Data', index=False)
+                
+            messagebox.showinfo("Success", f"Report generated:\n{out_xls}")
+        else:
+            messagebox.showinfo("Info", "No data to merge.")
 
     def _open_export_dialog(self):
-        if not self.file_list: return
-        
-        dlg = tk.Toplevel(self.root)
-        dlg.title("Advanced Export Options")
-        dlg.geometry("380x850") # Taller for log area
-        
-        # 1. Mode
-        mode_frame = ttk.LabelFrame(dlg, text="Export Mode")
-        mode_frame.pack(fill='x', padx=10, pady=5)
-        mode_var = tk.StringVar(value="FA Only")
-        ttk.Combobox(mode_frame, textvariable=mode_var, values=["FA Only", "Whole Cell"], state="readonly").pack(fill='x', padx=5, pady=5)
-        
-        # 2. Subset Extraction (NEW)
-        sub_frame = ttk.LabelFrame(dlg, text="Subset Extraction")
-        sub_frame.pack(fill='x', padx=10, pady=5)
-        
-        sub_on_var = tk.BooleanVar(value=False)
-        chk_sub = ttk.Checkbutton(sub_frame, text="Enable Subset", variable=sub_on_var)
-        chk_sub.grid(row=0, column=0, sticky='w', padx=5, pady=2)
-        
-        ttk.Label(sub_frame, text="Stage No:").grid(row=0, column=1, sticky='e')
-        sub_stage_var = tk.StringVar()
-        e_stage = ttk.Entry(sub_frame, textvariable=sub_stage_var, width=5, state='disabled')
-        e_stage.grid(row=0, column=2, sticky='w', padx=2)
-        
-        ttk.Label(sub_frame, text="Cell No:").grid(row=0, column=3, sticky='e')
-        sub_cell_var = tk.StringVar()
-        e_cell = ttk.Entry(sub_frame, textvariable=sub_cell_var, width=5, state='disabled')
-        e_cell.grid(row=0, column=4, sticky='w', padx=2)
+        ExportDialog(self.root, self.file_list, self.out_dir.get(), self.current_idx, self.current_img, self.current_rois, self.current_stats, self.global_params, self._get_pixel_size())
 
-        def toggle_subset():
-            st = 'normal' if sub_on_var.get() else 'disabled'
-            e_stage.config(state=st)
-            e_cell.config(state=st)
-        sub_on_var.trace('w', lambda *a: toggle_subset())
-
-        # 3. Resolution
-        res_frame = ttk.LabelFrame(dlg, text="Resolution & Zoom")
-        res_frame.pack(fill='x', padx=10, pady=5)
+# =========================================================
+# Export Dialog Class (Enhanced)
+# =========================================================
+class ExportDialog:
+    def __init__(self, parent, file_list, out_root, current_idx, current_img, current_rois, current_stats, global_params, px_size):
+        self.top = tk.Toplevel(parent)
+        self.top.title("Export Crop Images")
+        self.top.geometry("500x600")
         
-        ttk.Label(res_frame, text="Width (px):").grid(row=0, column=0, sticky='e', padx=5)
-        w_var = tk.IntVar(value=500)
-        ttk.Entry(res_frame, textvariable=w_var, width=6).grid(row=0, column=1, sticky='w')
+        self.file_list = file_list
+        self.out_root = out_root
+        self.current_idx = current_idx
+        self.current_img = current_img
+        self.current_rois = current_rois
+        self.current_stats = current_stats
+        self.global_params = global_params
+        self.px_size = px_size
         
-        ttk.Label(res_frame, text="Height (px):").grid(row=0, column=2, sticky='e', padx=5)
-        h_var = tk.IntVar(value=500)
-        ttk.Entry(res_frame, textvariable=h_var, width=6).grid(row=0, column=3, sticky='w')
+        # Options
+        self.mode_var = tk.StringVar(value="FA Only") # FA Only, Overlay, Mask
+        self.cmap_var = tk.StringVar(value="jet")
+        self.sb_var = tk.BooleanVar(value=True)
+        self.sb_len_var = tk.DoubleVar(value=10.0)
+        self.dpi_var = tk.IntVar(value=300)
+        self.fmt_var = tk.StringVar(value="png")
         
-        ttk.Label(res_frame, text="DPI:").grid(row=1, column=0, sticky='e', padx=5, pady=5)
-        dpi_var = tk.IntVar(value=600)
-        ttk.Entry(res_frame, textvariable=dpi_var, width=6).grid(row=1, column=1, sticky='w')
+        ttk.Label(self.top, text="Export Settings", font=("Arial", 12, "bold")).pack(pady=10)
         
-        ttk.Label(res_frame, text="Crop Padding (px):").grid(row=2, column=0, columnspan=2, sticky='e', padx=5, pady=5)
-        pad_var = tk.IntVar(value=100)
-        ttk.Entry(res_frame, textvariable=pad_var, width=6).grid(row=2, column=2, sticky='w')
+        f = ttk.Frame(self.top)
+        f.pack(fill='x', padx=20, pady=5)
+        ttk.Label(f, text="Mode:").pack(side='left')
+        ttk.Combobox(f, textvariable=self.mode_var, values=["FA Only", "Grayscale Raw"], state="readonly").pack(side='left', padx=10)
         
-        # 4. Filter Options
-        filt_frame = ttk.LabelFrame(dlg, text="Filter Overlay")
-        filt_frame.pack(fill='x', padx=10, pady=5)
-        ok_only_var = tk.BooleanVar(value=True) # Default ON
-        ttk.Checkbutton(filt_frame, text="Show 'OK' Category Only (Exclude Red/Blue)", variable=ok_only_var).pack(anchor='w', padx=5, pady=5)
+        f = ttk.Frame(self.top)
+        f.pack(fill='x', padx=20, pady=5)
+        ttk.Label(f, text="Colormap:").pack(side='left')
+        ttk.Combobox(f, textvariable=self.cmap_var, values=["jet", "viridis", "magma", "gray", "hot"], state="readonly").pack(side='left', padx=10)
         
-        # 5. Scale Bar Settings
-        sb_frame = ttk.LabelFrame(dlg, text="Scale Bar Settings")
-        sb_frame.pack(fill='x', padx=10, pady=5)
+        f = ttk.Frame(self.top)
+        f.pack(fill='x', padx=20, pady=5)
+        ttk.Checkbutton(f, text="Add Scale Bar", variable=self.sb_var).pack(side='left')
+        ttk.Label(f, text="Length (um):").pack(side='left', padx=(20, 5))
+        ttk.Entry(f, textvariable=self.sb_len_var, width=5).pack(side='left')
         
-        sb_on_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(sb_frame, text="Enable Scale Bar", variable=sb_on_var).grid(row=0, column=0, sticky='w', padx=5, pady=2)
+        f = ttk.Frame(self.top)
+        f.pack(fill='x', padx=20, pady=5)
+        ttk.Label(f, text="DPI:").pack(side='left')
+        ttk.Entry(f, textvariable=self.dpi_var, width=5).pack(side='left', padx=10)
         
-        ttk.Label(sb_frame, text="Length (µm):").grid(row=0, column=1, sticky='e')
-        sb_len_var = tk.DoubleVar(value=20.0)
-        ttk.Entry(sb_frame, textvariable=sb_len_var, width=5).grid(row=0, column=2, sticky='w', padx=2)
+        ttk.Button(self.top, text="Export Current Image Crops", command=self._export_current).pack(fill='x', padx=20, pady=10)
+        ttk.Button(self.top, text="Export ALL Images (Batch)", command=self._export_all).pack(fill='x', padx=20, pady=5)
         
-        sb_text_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(sb_frame, text="Show Text", variable=sb_text_var).grid(row=1, column=0, sticky='w', padx=5, pady=2)
+    def _export_current(self):
+        if self.current_img is None: return
+        self._process_export([ (self.current_img, self.current_rois, self.file_list[self.current_idx][2], self.current_stats) ])
         
-        ttk.Label(sb_frame, text="Font Size:").grid(row=1, column=1, sticky='e')
-        sb_font_var = tk.IntVar(value=10)
-        ttk.Entry(sb_frame, textvariable=sb_font_var, width=5).grid(row=1, column=2, sticky='w', padx=2)
+    def _export_all(self):
+        if not messagebox.askyesno("Confirm", "Export crops for ALL files? This may take time."): return
         
-        # 6. Colormap Settings
-        cm_frame = ttk.LabelFrame(dlg, text="Colormap Settings")
-        cm_frame.pack(fill='x', padx=10, pady=5)
+        tasks = []
+        # We need to load images for batch
+        # This might be slow, so we do it one by one in process loop
+        # But here we just pass the list of files to process
+        self._process_export(None) # None triggers batch load mode
         
-        ttk.Label(cm_frame, text="Map:").grid(row=0, column=0, sticky='e', padx=5)
-        cmap_var = tk.StringVar(value="green")
-        cmap_choices = ["jet", "viridis", "inferno", "plasma", "gray", 
-                        "blue", "cyan", "green", "yellow", "red", "magenta", "grayscale"]
-        ttk.Combobox(cm_frame, textvariable=cmap_var, values=cmap_choices, state="readonly", width=10).grid(row=0, column=1, sticky='w', pady=2)
+    def _process_export(self, tasks):
+        # tasks is list of (img, rois, s_tag, stats) or None
         
-        cbar_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(cm_frame, text="Show Bar", variable=cbar_var).grid(row=0, column=2, sticky='w', padx=5)
+        out_dir = os.path.join(self.out_root, "crops_export")
+        if not os.path.exists(out_dir): os.makedirs(out_dir)
         
-        rescale_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(cm_frame, text="Rescale Intensity", variable=rescale_var).grid(row=1, column=0, columnspan=2, sticky='w', padx=5, pady=5)
+        cmap = self.cmap_var.get()
+        sb_on = self.sb_var.get()
+        sb_len = self.sb_len_var.get()
+        dpi = self.dpi_var.get()
         
-        ttk.Label(cm_frame, text="Min:").grid(row=2, column=0, sticky='e')
-        min_var = tk.StringVar(value="")
-        e_min = ttk.Entry(cm_frame, textvariable=min_var, width=6)
-        e_min.grid(row=2, column=1, sticky='w', padx=2)
-        
-        ttk.Label(cm_frame, text="Max:").grid(row=2, column=2, sticky='e')
-        max_var = tk.StringVar(value="")
-        e_max = ttk.Entry(cm_frame, textvariable=max_var, width=6)
-        e_max.grid(row=2, column=3, sticky='w', padx=2)
-        
-        def toggle_rescale():
-            st = 'normal' if rescale_var.get() else 'disabled'
-            e_min.config(state=st)
-            e_max.config(state=st)
-        rescale_var.trace('w', lambda *args: toggle_rescale())
-        toggle_rescale()
-
-        # 7. ROI Boundary Settings
-        roi_frame = ttk.LabelFrame(dlg, text="ROI Boundary Settings")
-        roi_frame.pack(fill='x', padx=10, pady=5)
-        
-        ttk.Label(roi_frame, text="Width:").grid(row=0, column=0, sticky='e', padx=5)
-        roi_lw_var = tk.DoubleVar(value=0.5)
-        ttk.Entry(roi_frame, textvariable=roi_lw_var, width=5).grid(row=0, column=1, sticky='w')
-
-        ttk.Label(roi_frame, text="Color:").grid(row=0, column=2, sticky='e', padx=5)
-        roi_color_var = tk.StringVar(value="gray")
-        color_choices = ['gray', 'white', 'yellow', 'cyan', 'magenta', 'red', 'lime', 'blue', 'black']
-        ttk.Combobox(roi_frame, textvariable=roi_color_var, values=color_choices, state="readonly", width=8).grid(row=0, column=3, sticky='w')
-        
-        # 8. Log Area (NEW)
-        log_frame = ttk.LabelFrame(dlg, text="Log / Status")
-        log_frame.pack(fill='both', expand=True, padx=10, pady=5)
-        
-        log_text = tk.Text(log_frame, height=8, state='disabled', bg='#f0f0f0', font=("Consolas", 9))
-        scrollbar = ttk.Scrollbar(log_frame, orient="vertical", command=log_text.yview)
-        log_text.configure(yscrollcommand=scrollbar.set)
-        log_text.pack(side="left", fill="both", expand=True, padx=5, pady=5)
-        scrollbar.pack(side="right", fill="y", pady=5)
-        
-        def log_msg(msg):
-            log_text.config(state='normal')
-            log_text.insert(tk.END, msg + "\n")
-            log_text.see(tk.END)
-            log_text.config(state='disabled')
-            dlg.update()
-
-        def run_export_wrapper():
-            # Parse Min/Max
-            v_min = None
-            v_max = None
-            if rescale_var.get():
-                try: v_min = float(min_var.get())
-                except: v_min = None
-                try: v_max = float(max_var.get())
-                except: v_max = None
+        # Helper to process one file
+        def process_one(img, rois, s_tag, stats):
+            file_dir = os.path.join(out_dir, s_tag)
+            if not os.path.exists(file_dir): os.makedirs(file_dir)
             
-            # Parse Subset
-            sub_stage = None
-            sub_cell = None
-            if sub_on_var.get():
-                s_val = sub_stage_var.get().strip()
-                c_val = sub_cell_var.get().strip()
-                if s_val:
-                    try: sub_stage = int(s_val)
-                    except: log_msg("[Error] Stage No must be integer"); return
-                if c_val:
-                    try: sub_cell = int(c_val)
-                    except: log_msg("[Error] Cell No must be integer"); return
-
-            # Call export function with logger callback (don't close dialog)
-            self._export_all_crops(
-                mode=mode_var.get(), 
-                cmap=cmap_var.get(), 
-                show_cbar=cbar_var.get(),
-                vmin=v_min, vmax=v_max,
-                sb_on=sb_on_var.get(),
-                sb_len=sb_len_var.get(),
-                sb_text=sb_text_var.get(),
-                sb_font=sb_font_var.get(),
-                out_w=w_var.get(),
-                out_h=h_var.get(),
-                out_dpi=dpi_var.get(),
-                show_ok_only=ok_only_var.get(),
-                padding=pad_var.get(),
-                roi_lw=roi_lw_var.get(),
-                roi_color=roi_color_var.get(),
-                subset_on=sub_on_var.get(),
-                subset_stage=sub_stage,
-                subset_cell=sub_cell,
-                logger=log_msg
-            )
+            # Global Config for now
+            config = {
+                'alpha': self.global_params['alpha'],
+                'min_px': self.global_params['min_area_um'] / (self.px_size**2),
+                'max_px': self.global_params['max_area_um'] / (self.px_size**2),
+                'close_radius': self.global_params['close_radius'],
+                'subtract_bg': self.global_params.get('subtract_bg', True)
+            }
             
-        ttk.Button(dlg, text="START EXPORT", command=run_export_wrapper).pack(fill='x', padx=10, pady=5)
-        # Close button since it stays open
-        ttk.Button(dlg, text="Close", command=dlg.destroy).pack(fill='x', padx=10, pady=5)
-
-    def _export_all_crops(self, mode='FA Only', cmap='jet', show_cbar=True, vmin=None, vmax=None,
-                          sb_on=False, sb_len=20, sb_text=True, sb_font=10,
-                          out_w=500, out_h=500, out_dpi=600, show_ok_only=False, padding=20,
-                          roi_lw=0.5, roi_color='gray',
-                          subset_on=False, subset_stage=None, subset_cell=None,
-                          logger=None):
-        
-        out_root = self.out_dir.get()
-        crop_dir = os.path.join(out_root, "crop_images")
-        if not os.path.exists(crop_dir): os.makedirs(crop_dir)
-        
-        count = 0
-        px_size = self._get_pixel_size()
-        
-        if logger: logger("Initializing Export...")
-        
-        try:
-            for idx, (img_path, json_path, s_tag) in enumerate(self.file_list):
-                # Subset Filter: Stage
-                if subset_on and subset_stage is not None:
-                    # Extract number from s_tag (e.g. S01 -> 1, s2 -> 2)
-                    m = re.search(r'\d+', s_tag)
-                    if m:
-                        s_num = int(m.group())
-                        if s_num != subset_stage:
-                            continue
-                    else:
-                        continue # Skip if no number found
+            for i, roi_poly in enumerate(rois):
+                xs = roi_poly[:, 0]; ys = roi_poly[:, 1]
+                x_min, x_max = int(np.floor(xs.min())), int(np.ceil(xs.max()))
+                y_min, y_max = int(np.floor(ys.min())), int(np.ceil(ys.max()))
+                pad = 5
+                x_min = max(0, x_min - pad); x_max = min(img.shape[1], x_max + pad)
+                y_min = max(0, y_min - pad); y_max = min(img.shape[0], y_max + pad)
                 
-                if logger: logger(f"Processing {s_tag}...")
+                img_crop = img[y_min:y_max, x_min:x_max]
+                poly_crop = roi_poly.copy()
+                poly_crop[:, 0] -= x_min
+                poly_crop[:, 1] -= y_min
+                mask_crop = np.zeros(img_crop.shape, dtype=bool)
+                rr, cc = polygon(poly_crop[:,1], poly_crop[:,0], img_crop.shape)
+                mask_crop[rr, cc] = True
                 
-                # Load Image
-                if idx == self.current_idx and self.current_img is not None:
-                    img = self.current_img
-                    stats = self.current_stats
-                else:
+                # Analyze to get mask
+                _, _, bw, _ = analyze_fa_crop(img_crop, mask_crop, config, stats)
+                
+                # Save
+                fname = f"Cell_{i+1}.png"
+                path = os.path.join(file_dir, fname)
+                
+                save_crop_colormap(img_crop, bw, poly_crop, path, 
+                                   cmap_name=cmap, show_cbar=True, 
+                                   sb_on=sb_on, sb_len_um=sb_len, px_size=self.px_size,
+                                   out_dpi=dpi)
+                                   
+        # Execution
+        if tasks:
+            for t in tasks: process_one(*t)
+            messagebox.showinfo("Done", "Export complete.")
+        else:
+            # Batch Mode
+            prog = tk.Toplevel(self.top)
+            l = tk.Label(prog, text="Exporting...")
+            l.pack()
+            
+            for img_path, json_path, s_tag in self.file_list:
+                l.config(text=f"Exporting {s_tag}...")
+                prog.update()
+                
+                try:
                     img = imread(img_path)
                     if img.ndim > 2: img = img[:,:,0]
-                    img_float = img.astype(np.float32)
-                    sample = img_float[::10, ::10]
-                    bg_val = np.percentile(sample, 1.0)
-                    stats = (np.nanmean(img_float), np.nanstd(img_float), bg_val)
-                
-                with open(json_path, 'r') as f: roi_data = json.load(f)
-                rois = []
-                for item in roi_data.get('rois', []):
-                    pts = item if isinstance(item, list) else item.get('rois', item)
-                    if isinstance(item, list): pts = item
-                    if pts: rois.append(np.array(pts))
-                
-                # Load Settings from CSV if exists
-                csv_path = os.path.join(out_root, "individual_results", f"{s_tag}_results.csv")
-                file_settings = {}
-                if os.path.exists(csv_path):
-                    try:
-                        df = pd.read_csv(csv_path)
-                        u_cells = df.drop_duplicates(subset=['Cell_ID'])
-                        for _, r in u_cells.iterrows():
-                            cid = int(r['Cell_ID']) - 1
-                            file_settings[cid] = {
-                                'alpha': float(r['Used_Alpha']),
-                                'min_area_um': float(r['Min_Area_Setting']),
-                                'max_area_um': float(r['Max_Area_Setting']),
-                                'close_radius': int(r['Close_Radius_Setting']),
-                                'subtract_bg': bool(r.get('Subtract_BG_Setting', True))
-                            }
-                    except: pass
-                
-                for i, roi_poly in enumerate(rois):
-                    # Subset Filter: Cell
-                    if subset_on and subset_cell is not None:
-                        if (i + 1) != subset_cell:
-                            continue
-
-                    params = file_settings.get(i, self.global_params)
-                    config = self._convert_um_to_px_config(params)
+                    img = img.astype(np.float32)
                     
-                    xs = roi_poly[:, 0]; ys = roi_poly[:, 1]
-                    x_min, x_max = int(np.floor(xs.min())), int(np.ceil(xs.max()))
-                    y_min, y_max = int(np.floor(ys.min())), int(np.ceil(ys.max()))
-                    
-                    # Use User Padding
-                    pad = padding
-                    x_min = max(0, x_min - pad); x_max = min(img.shape[1], x_max + pad)
-                    y_min = max(0, y_min - pad); y_max = min(img.shape[0], y_max + pad)
-                    
-                    img_crop = img[y_min:y_max, x_min:x_max]
-                    poly_crop = roi_poly.copy()
-                    poly_crop[:, 0] -= x_min
-                    poly_crop[:, 1] -= y_min
-                    mask_crop = np.zeros(img_crop.shape, dtype=bool)
-                    rr, cc = polygon(poly_crop[:,1], poly_crop[:,0], img_crop.shape)
-                    mask_crop[rr, cc] = True
-                    
-                    res, _, bw, labeled_img = analyze_fa_crop(img_crop, mask_crop, config, stats)
-                    
-                    # Logic for Final Mask
-                    if show_ok_only and mode == 'FA Only':
-                        # Only show pixels belonging to 'OK' labels
-                        final_mask = np.zeros_like(bw)
-                        for item in res['OK']:
-                            final_mask[labeled_img == item['label']] = True
-                    elif mode == "FA Only":
-                        final_mask = bw 
-                    else:
-                        final_mask = mask_crop
+                    with open(json_path, 'r') as f: roi_data = json.load(f)
+                    rois = []
+                    for item in roi_data.get('rois', []):
+                        pts = item if isinstance(item, list) else item.get('rois', item)
+                        if isinstance(item, list): pts = item
+                        if pts: rois.append(np.array(pts))
                         
-                    fname = f"{s_tag}_Cell_{i+1}_{mode.replace(' ','')}.png"
-                    out_path = os.path.join(crop_dir, fname)
+                    # Stats
+                    sample = img[::10, ::10]
+                    bg = np.percentile(sample, 1.0)
+                    stats = (np.nanmean(img), np.nanstd(img), bg)
                     
-                    save_crop_colormap(
-                        img_crop, final_mask, poly_crop, out_path, 
-                        cmap_name=cmap, show_cbar=show_cbar, mode=mode,
-                        vmin=vmin, vmax=vmax,
-                        sb_on=sb_on, sb_len_um=sb_len, sb_text=sb_text, sb_font=sb_font,
-                        px_size=px_size,
-                        out_w=out_w, out_h=out_h, out_dpi=out_dpi,
-                        roi_lw=roi_lw, roi_color=roi_color
-                    )
-                    count += 1
-                    if logger: logger(f"  -> Saved Cell #{i+1}")
+                    process_one(img, rois, s_tag, stats)
+                    
+                except: pass
             
-            if logger: logger(f"[Success] Exported {count} images.")
-            
-        except Exception as e:
-            traceback.print_exc()
-            if logger: logger(f"[Error] {str(e)}")
-        finally:
-            if logger: logger("Done.")
+            prog.destroy()
+            messagebox.showinfo("Done", "Batch Export complete.")
 
 if __name__ == "__main__":
     root = tk.Tk()
