@@ -670,7 +670,7 @@ def gui_get_params(lang=None):
     scale_choices, scale_values = build_scale_presets(lang)
     rim_choices, rim_values = build_rim_presets(lang)
     default_scale = scale_choices[0] if scale_choices else ""
-    default_rim_preset = rim_choices[-1] if rim_choices else ""
+    default_rim_preset = rim_choices[2] if len(rim_choices) > 2 else ""
     res = {
         "img_dir": None, "roi_dir": None, "out_root": "",
         "timelapse": False,
