@@ -34,7 +34,7 @@ goto lang_menu
 cls
 echo Program Set for Fluorescence Intensity Analysis
 echo ==============================
-echo  1. ROI BND drawer
+echo  1. ROI Drawing
 echo  2. Morphology Analysis
 echo  3. Fluorescence Intensity Analysis
 echo  4. Image Cropper by ROI
@@ -57,8 +57,25 @@ pause
 goto menu
 
 :run1
-call :run "src\roi_manual_drawer.py"
-goto menu
+cls
+echo Select ROI Drawing Mode:
+echo ==============================
+echo  1. Manual (roi_manual_drawer.py)
+echo  2. Auto (ROI_auto_drawer.py)
+echo ==============================
+set "roi_choice="
+set /p "roi_choice=Choose (1-2): "
+if /I "%roi_choice%"=="1" (
+    call :run "src\roi_manual_drawer.py"
+    goto menu
+)
+if /I "%roi_choice%"=="2" (
+    call :run "src\ROI_auto_drawer.py"
+    goto menu
+)
+echo Invalid selection.
+pause
+goto run1
 
 :run2
 call :run "src\MOR_by_ROI.py"

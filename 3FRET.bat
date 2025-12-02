@@ -33,7 +33,7 @@ goto lang_menu
 :menu
 cls
 echo ==============================
-echo  1. ROI BND drawer (roi_manual_drawer.py)
+echo  1. ROI Drawing
 echo  2. Morphology analysis (MOR_by_ROI.py)
 echo  3. General FRET analysis (fret_ratio_builder.py)
 echo  4. Nesprin2_FRET analysis (Nesprin2_FRET_Builder.py)
@@ -58,8 +58,25 @@ pause
 goto menu
 
 :run1
-call :run "src\roi_manual_drawer.py"
-goto menu
+cls
+echo Select ROI Drawing Mode:
+echo ==============================
+echo  1. Manual (roi_manual_drawer.py)
+echo  2. Auto (ROI_auto_drawer.py)
+echo ==============================
+set "roi_choice="
+set /p "roi_choice=Choose (1-2): "
+if /I "%roi_choice%"=="1" (
+    call :run "src\roi_manual_drawer.py"
+    goto menu
+)
+if /I "%roi_choice%"=="2" (
+    call :run "src\ROI_auto_drawer.py"
+    goto menu
+)
+echo Invalid selection.
+pause
+goto run1
 
 :run2
 call :run "src\MOR_by_ROI.py"

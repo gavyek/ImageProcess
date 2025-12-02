@@ -7,3 +7,6 @@ scipy
 scikit-image
 python-pptx
 openpyxl
+cellpose
+opencv-python
+torch

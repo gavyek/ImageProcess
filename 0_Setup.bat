@@ -38,6 +38,10 @@ call venv\Scripts\activate
 :: Upgrade pip first
 python -m pip install --upgrade pip
 
+:: Install PyTorch (CUDA 11.8) explicitly
+echo [LOG] Installing PyTorch with CUDA 11.8 support...
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
 :: Install requirements if file exists
 if exist "requirements.txt" (
     echo [LOG] Installing dependencies from requirements.txt...
