@@ -182,3 +182,4 @@ cython_debug/
 
 # Project: ignore any folder whose name contains "Local_"
 *Local_*/
+/.cellpose_cache

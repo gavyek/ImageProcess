@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-FA Analyzer v1.1 (Batch Process Added)
-- Default Export Option: 'Show OK Only' is now ON.
-- Removed 'Quick Snapshot' button.
-- Added 'PROCESS ALL FILES (Batch)' button with Progress Log.
+FA Analyzer v1.2 (Safe Image Loading)
+- Fixed: Correctly handles (Channel, Height, Width) TIF files.
+- Added: 'load_image_safe' helper function.
+- Preserved: Batch Processing & Safety Guards.
 """
 
 import os
@@ -37,6 +37,43 @@ import matplotlib.patches as mpatches
 from matplotlib import path as mpl_path
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.colors import LinearSegmentedColormap
+
+# =========================================================
+# Helper: Safe Image Loader (NEW)
+# =========================================================
+def load_image_safe(path):
+    """
+    Loads an image and automatically corrects dimension order.
+    Handles (C, H, W) vs (H, W, C) issues.
+    """
+    try:
+        # Try default load
+        img = imread(path)
+    except:
+        try:
+            # Fallback for some tifffile versions
+            img = imread(path, aszarr=False)
+        except:
+            return None
+
+    if img is None: return None
+    
+    # Handle Dimensions
+    if img.ndim == 3:
+        # Case 1: (Channels, Height, Width) -> e.g., (3, 1536, 2048)
+        # Usually Channels dimension is the smallest
+        if img.shape[0] < img.shape[1] and img.shape[0] < img.shape[2]:
+            img = img[0, :, :] # Take the first channel
+        
+        # Case 2: (Height, Width, Channels) -> e.g., (1536, 2048, 3)
+        elif img.shape[2] < img.shape[0] and img.shape[2] < img.shape[1]:
+            img = img[:, :, 0] # Take the first channel
+            
+    # If still > 2 dims (e.g. 4D Time-series), take first frame recursively
+    while img.ndim > 2:
+        img = img[0]
+
+    return img.astype(np.float32)
 
 # =========================================================
 # Helper: MATLAB v7.3 HDF5 Parser (Optional)
@@ -88,6 +125,10 @@ def find_matching_mat(mat_dir, s_tag):
 # Core Logic: FA Segmentation & Intensity
 # =========================================================
 def analyze_fa_crop(image_crop, roi_mask_crop, config, global_stats):
+    # [Safety Patch] 빈 이미지(크기가 0)가 들어오면 즉시 빈 결과 반환하여 에러 방지
+    if image_crop.size == 0 or image_crop.shape[0] == 0 or image_crop.shape[1] == 0:
+        return {'OK': [], 'Large': [], 'Small': []}, 0.0, np.zeros_like(image_crop, dtype=bool), np.zeros_like(image_crop, dtype=int)
+
     img_float = image_crop.astype(np.float32)
     
     # Handle stats unpacking
@@ -264,11 +305,8 @@ def save_crop_colormap(img_crop, mask, roi_poly_crop, out_path,
 class FAAnalyzerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("FA Analyzer v1.1 (Batch)")
+        self.root.title("FA Analyzer v1.2 (Safe Load)")
         self.root.geometry("1450x980")
-        
-        # Shortcuts removed as Quick Snapshot is gone
-        # self.root.bind('<s>', lambda e: self._save_current_view())
         
         self.img_dir = tk.StringVar()
         self.roi_dir = tk.StringVar()
@@ -405,15 +443,12 @@ class FAAnalyzerApp:
             scl = tk.Scale(inner, variable=var, from_=from_, to=to_, resolution=res, orient="horizontal", showvalue=0)
             scl.pack(side='left', fill='x', expand=True)
             
-            # OPTIMIZATION: 
-            # 1. 'command' (drag) -> _on_slider_interaction (Live update ONLY for single cell)
-            # 2. 'ButtonRelease-1' -> _on_param_update (Final update for Global Mode)
             scl.config(command=self._on_slider_interaction)
             scl.bind("<ButtonRelease-1>", self._on_param_update)
             
             return ent, scl
 
-        add_control("Threshold Alpha", self.alpha_var, 0.1, 10.0, 0.1)
+        add_control("Threshold Alpha", self.alpha_var, 0.1, 20.0, 0.1)
         add_control("Min Area (um^2)", self.min_area_um_var, 0.1, 10.0, 0.1)
         add_control("Max Area (um^2)", self.max_area_um_var, 10.0, 500.0, 1.0)
         add_control("Closing Radius (px)", self.close_rad_var, 0, 5, 1)
@@ -436,7 +471,6 @@ class FAAnalyzerApp:
         ttk.Checkbutton(save_opt_frame, text="Save 'OK' Category Only", variable=self.save_ok_only_var).pack(anchor='w')
 
         ttk.Button(right_frame, text="PROCESS CURRENT FILE ONLY", command=self._run_single_process).pack(fill='x', padx=10, pady=5)
-        # CHANGED: Replaced Quick Snapshot with Process All
         ttk.Button(right_frame, text="PROCESS ALL FILES (Batch)", command=self._run_batch_process).pack(fill='x', padx=10, pady=5)
         
         ttk.Separator(right_frame, orient='horizontal').pack(fill='x', pady=10)
@@ -601,8 +635,9 @@ class FAAnalyzerApp:
             
             img_path, json_path, s_tag = self.file_list[self.current_idx]
             try:
-                self.current_img = imread(img_path, aszarr=False) 
-                if self.current_img.ndim > 2: self.current_img = self.current_img[:,:,0]
+                # [Patch] Use Safe Loader
+                self.current_img = load_image_safe(img_path)
+                if self.current_img is None: raise ValueError("Image Load Failed")
                 
                 img_float = self.current_img.astype(np.float32)
                 
@@ -671,11 +706,6 @@ class FAAnalyzerApp:
         self._update_plot()
 
     def _on_slider_interaction(self, val):
-        """
-        Called continuously while dragging slider.
-        - Global Mode: Do NOTHING (wait for release to avoid lag).
-        - Cell Mode: Update LIVE (fast enough due to caching).
-        """
         if self.selected_cell_idx is not None:
             self._on_param_update()
 
@@ -722,15 +752,13 @@ class FAAnalyzerApp:
                 params = self.global_params
             
             # CACHING LOGIC
-            # Create a hashable key for the current state
-            # We need: cell_index, and all parameters that affect analysis
             param_key = (
                 params['alpha'],
                 params['min_area_um'],
                 params['max_area_um'],
                 params['close_radius'],
                 params.get('subtract_bg', True),
-                self.current_stats # Stats also affect result (bg_val)
+                self.current_stats
             )
             
             cache_key = (i, param_key)
@@ -751,7 +779,14 @@ class FAAnalyzerApp:
                 y_min = max(0, y_min - pad)
                 y_max = min(img.shape[0], y_max + pad)
                 
-                img_crop = img[y_min:y_max, x_min:x_max]
+                # [Safety Patch] Check Crop Region
+                if x_min >= x_max or y_min >= y_max:
+                    print(f"[Warning] Cell #{i+1} skipped: Invalid Crop Region. x[{x_min}:{x_max}], y[{y_min}:{y_max}]")
+                    print(f"  - Image Shape: {img.shape}")
+                    img_crop = np.array([]) 
+                else:
+                    img_crop = img[y_min:y_max, x_min:x_max]
+
                 poly_crop = roi_poly.copy()
                 poly_crop[:, 0] -= x_min
                 poly_crop[:, 1] -= y_min
@@ -761,7 +796,7 @@ class FAAnalyzerApp:
                 
                 res, th_val, bw, labeled_img = analyze_fa_crop(img_crop, mask_crop, config, self.current_stats)
                 
-                # Shift Results back to Global Frame immediately for caching consistency
+                # Shift Results
                 for cat in res:
                     for item in res[cat]:
                         item['contour'][:, 0] += y_min
@@ -770,11 +805,7 @@ class FAAnalyzerApp:
                 # Store in cache
                 self.analysis_cache[cache_key] = (res, th_val, bw, labeled_img)
 
-            # NOTE: We already shifted contours in the calculation block above (or retrieved shifted ones)
-            # So we don't need to shift them again here.
-            
             edge_c = 'cyan' if i == self.selected_cell_idx else 'yellow'
-            line_w = 2.5 if i == self.selected_cell_idx else 1.0
             
             patch = mpatches.Polygon(roi_poly, closed=True, edgecolor=edge_c, facecolor='none', linewidth=1, linestyle='-')
             self.ax.add_patch(patch)
@@ -830,7 +861,12 @@ class FAAnalyzerApp:
                 pad = 5
                 x_min = max(0, x_min - pad); x_max = min(img.shape[1], x_max + pad)
                 y_min = max(0, y_min - pad); y_max = min(img.shape[0], y_max + pad)
-                img_crop = img[y_min:y_max, x_min:x_max]
+                
+                if x_min >= x_max or y_min >= y_max:
+                    img_crop = np.array([])
+                else:
+                    img_crop = img[y_min:y_max, x_min:x_max]
+
                 poly_crop = roi_poly.copy()
                 poly_crop[:, 0] -= x_min
                 poly_crop[:, 1] -= y_min
@@ -929,13 +965,16 @@ class FAAnalyzerApp:
             for idx, (img_path, json_path, s_tag) in enumerate(self.file_list):
                 log(f"Processing {s_tag}...")
                 
-                # Load Image
+                # Load Image [Patch] Use Safe Loader
                 if idx == self.current_idx and self.current_img is not None:
                     img = self.current_img
                     stats = self.current_stats
                 else:
-                    img = imread(img_path)
-                    if img.ndim > 2: img = img[:,:,0]
+                    img = load_image_safe(img_path)
+                    if img is None:
+                        log(f"  [Error] Failed to load image: {s_tag}")
+                        continue
+                        
                     img_float = img.astype(np.float32)
                     sample = img_float[::10, ::10]
                     bg_val = np.percentile(sample, 1.0)
@@ -950,10 +989,6 @@ class FAAnalyzerApp:
                 
                 file_rows = []
                 for i, roi_poly in enumerate(rois):
-                    # In batch mode, we use global config for all cells
-                    # unless we want to load from existing CSV? 
-                    # Usually batch overwrites or creates new. Let's use global.
-                    
                     xs = roi_poly[:, 0]; ys = roi_poly[:, 1]
                     x_min, x_max = int(np.floor(xs.min())), int(np.ceil(xs.max()))
                     y_min, y_max = int(np.floor(ys.min())), int(np.ceil(ys.max()))
@@ -961,7 +996,11 @@ class FAAnalyzerApp:
                     x_min = max(0, x_min - pad); x_max = min(img.shape[1], x_max + pad)
                     y_min = max(0, y_min - pad); y_max = min(img.shape[0], y_max + pad)
                     
-                    img_crop = img[y_min:y_max, x_min:x_max]
+                    if x_min >= x_max or y_min >= y_max:
+                        img_crop = np.array([])
+                    else:
+                        img_crop = img[y_min:y_max, x_min:x_max]
+
                     poly_crop = roi_poly.copy()
                     poly_crop[:, 0] -= x_min
                     poly_crop[:, 1] -= y_min
@@ -1148,7 +1187,11 @@ class ExportDialog:
                 x_min = max(0, x_min - pad); x_max = min(img.shape[1], x_max + pad)
                 y_min = max(0, y_min - pad); y_max = min(img.shape[0], y_max + pad)
                 
-                img_crop = img[y_min:y_max, x_min:x_max]
+                if x_min >= x_max or y_min >= y_max:
+                    img_crop = np.array([])
+                else:
+                    img_crop = img[y_min:y_max, x_min:x_max]
+
                 poly_crop = roi_poly.copy()
                 poly_crop[:, 0] -= x_min
                 poly_crop[:, 1] -= y_min
@@ -1183,9 +1226,9 @@ class ExportDialog:
                 prog.update()
                 
                 try:
-                    img = imread(img_path)
-                    if img.ndim > 2: img = img[:,:,0]
-                    img = img.astype(np.float32)
+                    # [Patch] Use Safe Loader
+                    img = load_image_safe(img_path)
+                    if img is None: continue
                     
                     with open(json_path, 'r') as f: roi_data = json.load(f)
                     rois = []
