@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-FA Analyzer v1.2 (Safe Image Loading)
-- Fixed: Correctly handles (Channel, Height, Width) TIF files.
-- Added: 'load_image_safe' helper function.
-- Preserved: Batch Processing & Safety Guards.
+FA Analyzer v1.3 (Report Enhanced)
+- New: Excel Report now includes 'Cell_Summary' sheet.
+- New: File Summary now calculates 'Avg FA per Cell'.
+- Preserved: Safe Image Loading & Batch Processing.
 """
 
 import os
@@ -39,7 +39,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.colors import LinearSegmentedColormap
 
 # =========================================================
-# Helper: Safe Image Loader (NEW)
+# Helper: Safe Image Loader
 # =========================================================
 def load_image_safe(path):
     """
@@ -47,11 +47,9 @@ def load_image_safe(path):
     Handles (C, H, W) vs (H, W, C) issues.
     """
     try:
-        # Try default load
         img = imread(path)
     except:
         try:
-            # Fallback for some tifffile versions
             img = imread(path, aszarr=False)
         except:
             return None
@@ -61,15 +59,13 @@ def load_image_safe(path):
     # Handle Dimensions
     if img.ndim == 3:
         # Case 1: (Channels, Height, Width) -> e.g., (3, 1536, 2048)
-        # Usually Channels dimension is the smallest
         if img.shape[0] < img.shape[1] and img.shape[0] < img.shape[2]:
             img = img[0, :, :] # Take the first channel
-        
         # Case 2: (Height, Width, Channels) -> e.g., (1536, 2048, 3)
         elif img.shape[2] < img.shape[0] and img.shape[2] < img.shape[1]:
             img = img[:, :, 0] # Take the first channel
             
-    # If still > 2 dims (e.g. 4D Time-series), take first frame recursively
+    # If still > 2 dims, take first frame recursively
     while img.ndim > 2:
         img = img[0]
 
@@ -125,7 +121,7 @@ def find_matching_mat(mat_dir, s_tag):
 # Core Logic: FA Segmentation & Intensity
 # =========================================================
 def analyze_fa_crop(image_crop, roi_mask_crop, config, global_stats):
-    # [Safety Patch] 빈 이미지(크기가 0)가 들어오면 즉시 빈 결과 반환하여 에러 방지
+    # [Safety Patch] Skip empty images
     if image_crop.size == 0 or image_crop.shape[0] == 0 or image_crop.shape[1] == 0:
         return {'OK': [], 'Large': [], 'Small': []}, 0.0, np.zeros_like(image_crop, dtype=bool), np.zeros_like(image_crop, dtype=int)
 
@@ -203,31 +199,15 @@ def analyze_fa_crop(image_crop, roi_mask_crop, config, global_stats):
 # =========================================================
 def draw_scalebar(ax, img_w, img_h, bar_px, bar_um, 
                   show_text=True, font_size=10, color='white'):
-    """Draws a scale bar at bottom right"""
     margin_x = int(img_w * 0.05)
     margin_y = int(img_h * 0.05)
-    
-    # Position: Bottom Right
     x_end = img_w - margin_x
     x_start = x_end - bar_px
     y = img_h - margin_y
-    
-    # Draw Line
     ax.plot([x_start, x_end], [y, y], color=color, linewidth=3)
-    
-    # Draw Text
     if show_text:
-        text_y = y - max(10, int(0.02 * img_h)) # Slightly above line
-        ax.text(
-            (x_start + x_end) / 2,
-            text_y,
-            f"{int(bar_um)} µm",
-            color=color,
-            ha='center',
-            va='bottom',
-            fontsize=font_size,
-            fontweight='bold'
-        )
+        text_y = y - max(10, int(0.02 * img_h)) 
+        ax.text((x_start + x_end) / 2, text_y, f"{int(bar_um)} µm", color=color, ha='center', va='bottom', fontsize=font_size, fontweight='bold')
 
 def save_crop_colormap(img_crop, mask, roi_poly_crop, out_path, 
                        cmap_name='jet', show_cbar=True, mode='FA Only',
@@ -235,52 +215,37 @@ def save_crop_colormap(img_crop, mask, roi_poly_crop, out_path,
                        sb_on=False, sb_len_um=20, sb_text=True, sb_font=10, px_size=0.112,
                        out_w=500, out_h=500, out_dpi=600,
                        roi_lw=0.5, roi_color='gray'):
-    
-    # Calculate Figure Size in Inches for requested Pixels
     fig_w_in = out_w / out_dpi
     fig_h_in = out_h / out_dpi
-    
     fig = plt.figure(figsize=(fig_w_in, fig_h_in), dpi=out_dpi)
     fig.patch.set_facecolor('black')
-    
     ax = fig.add_axes([0, 0, 1, 1])
     ax.set_facecolor('black')
     
     masked_data = np.ma.array(img_crop, mask=~mask)
     
-    # Auto Scale
     if vmin is None or vmax is None:
         valid_data = img_crop[mask]
         if valid_data.size > 0:
             auto_vmin, auto_vmax = np.percentile(valid_data, 1), np.percentile(valid_data, 99)
         else:
             auto_vmin, auto_vmax = 0, 1
-        
         if vmin is None: vmin = auto_vmin
         if vmax is None: vmax = auto_vmax
 
-    # Set Colormap
     cmap_lower = cmap_name.lower()
     if cmap_lower in ['blue', 'cyan', 'green', 'yellow', 'red', 'magenta']:
         cmap = LinearSegmentedColormap.from_list(f"custom_{cmap_lower}", ["black", cmap_lower])
     elif cmap_lower == 'grayscale':
         cmap = plt.get_cmap('gray').copy()
     else:
-        try:
-            cmap = plt.get_cmap(cmap_name).copy()
-        except:
-            cmap = plt.get_cmap('jet').copy()
+        try: cmap = plt.get_cmap(cmap_name).copy()
+        except: cmap = plt.get_cmap('jet').copy()
         
     cmap.set_bad(color='black') 
-    
-    # Display Image (Centered)
     im = ax.imshow(masked_data, cmap=cmap, vmin=vmin, vmax=vmax, aspect='equal')
-    
-    # Overlay ROI with custom style
-    ax.plot(roi_poly_crop[:, 0], roi_poly_crop[:, 1], 
-            linestyle='--', linewidth=roi_lw, color=roi_color, alpha=0.8)
+    ax.plot(roi_poly_crop[:, 0], roi_poly_crop[:, 1], linestyle='--', linewidth=roi_lw, color=roi_color, alpha=0.8)
 
-    # Scale Bar
     if sb_on and px_size > 0:
         bar_px = sb_len_um / px_size
         h, w = img_crop.shape
@@ -288,7 +253,6 @@ def save_crop_colormap(img_crop, mask, roi_poly_crop, out_path,
             draw_scalebar(ax, w, h, bar_px, sb_len_um, show_text=sb_text, font_size=sb_font)
 
     ax.axis('off')
-    
     if show_cbar:
         from mpl_toolkits.axes_grid1.inset_locator import inset_axes
         cax = inset_axes(ax, width="3%", height="40%", loc='center right', borderpad=1)
@@ -305,7 +269,7 @@ def save_crop_colormap(img_crop, mask, roi_poly_crop, out_path,
 class FAAnalyzerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("FA Analyzer v1.2 (Safe Load)")
+        self.root.title("FA Analyzer v1.3 (Report Enhanced)")
         self.root.geometry("1450x980")
         
         self.img_dir = tk.StringVar()
@@ -347,8 +311,7 @@ class FAAnalyzerApp:
         self.current_img = None
         self.current_stats = (0, 0, 0) 
         
-        # Performance Optimization: Caching
-        self.analysis_cache = {} # Key: (cell_idx, param_tuple), Value: result
+        self.analysis_cache = {} 
         
         self._setup_ui()
         
@@ -394,7 +357,6 @@ class FAAnalyzerApp:
         
         ttk.Button(param_frame, text="Load Files", command=self._load_file_list).pack(side="left", padx=20)
 
-        # Main Panes
         main_pane = ttk.PanedWindow(self.root, orient="horizontal")
         main_pane.pack(fill="both", expand=True, padx=10, pady=5)
         
@@ -420,7 +382,6 @@ class FAAnalyzerApp:
         self.canvas.get_tk_widget().pack(fill="both", expand=True)
         main_pane.add(center_frame, weight=4)
         
-        # Right Panel
         right_frame = ttk.LabelFrame(main_pane, text="Parameters")
         
         mode_frame = ttk.Frame(right_frame)
@@ -442,13 +403,11 @@ class FAAnalyzerApp:
             ent.bind('<Return>', lambda e: self._on_param_update(None))
             scl = tk.Scale(inner, variable=var, from_=from_, to=to_, resolution=res, orient="horizontal", showvalue=0)
             scl.pack(side='left', fill='x', expand=True)
-            
             scl.config(command=self._on_slider_interaction)
             scl.bind("<ButtonRelease-1>", self._on_param_update)
-            
             return ent, scl
 
-        add_control("Threshold Alpha", self.alpha_var, 0.1, 20.0, 0.1)
+        add_control("Threshold Alpha", self.alpha_var, 0.1, 10.0, 0.1)
         add_control("Min Area (um^2)", self.min_area_um_var, 0.1, 10.0, 0.1)
         add_control("Max Area (um^2)", self.max_area_um_var, 10.0, 500.0, 1.0)
         add_control("Closing Radius (px)", self.close_rad_var, 0, 5, 1)
@@ -635,12 +594,10 @@ class FAAnalyzerApp:
             
             img_path, json_path, s_tag = self.file_list[self.current_idx]
             try:
-                # [Patch] Use Safe Loader
                 self.current_img = load_image_safe(img_path)
                 if self.current_img is None: raise ValueError("Image Load Failed")
                 
                 img_float = self.current_img.astype(np.float32)
-                
                 sample = img_float[::10, ::10]
                 glob_bg = np.percentile(sample, 1.0)
                 self.current_stats = (np.nanmean(img_float), np.nanstd(img_float), glob_bg)
@@ -674,7 +631,6 @@ class FAAnalyzerApp:
                     if mat_path:
                         self.current_mat_polys = extract_matlab_boundaries(mat_path)
         
-        # Clear cache on new file load
         self.analysis_cache = {}
         self._update_plot()
 
@@ -734,7 +690,6 @@ class FAAnalyzerApp:
             for poly in self.current_mat_polys:
                 self.ax.plot(poly[:, 1], poly[:, 0], linewidth=1.0, color='magenta', linestyle='--')
 
-        # Auto-Zoom
         if self.selected_cell_idx is not None and self.auto_zoom_var.get():
             roi = rois[self.selected_cell_idx]
             xs = roi[:, 0]; ys = roi[:, 1]
@@ -751,7 +706,6 @@ class FAAnalyzerApp:
             else:
                 params = self.global_params
             
-            # CACHING LOGIC
             param_key = (
                 params['alpha'],
                 params['min_area_um'],
@@ -779,7 +733,6 @@ class FAAnalyzerApp:
                 y_min = max(0, y_min - pad)
                 y_max = min(img.shape[0], y_max + pad)
                 
-                # [Safety Patch] Check Crop Region
                 if x_min >= x_max or y_min >= y_max:
                     print(f"[Warning] Cell #{i+1} skipped: Invalid Crop Region. x[{x_min}:{x_max}], y[{y_min}:{y_max}]")
                     print(f"  - Image Shape: {img.shape}")
@@ -796,13 +749,11 @@ class FAAnalyzerApp:
                 
                 res, th_val, bw, labeled_img = analyze_fa_crop(img_crop, mask_crop, config, self.current_stats)
                 
-                # Shift Results
                 for cat in res:
                     for item in res[cat]:
                         item['contour'][:, 0] += y_min
                         item['contour'][:, 1] += x_min
                 
-                # Store in cache
                 self.analysis_cache[cache_key] = (res, th_val, bw, labeled_img)
 
             edge_c = 'cyan' if i == self.selected_cell_idx else 'yellow'
@@ -876,7 +827,6 @@ class FAAnalyzerApp:
                 
                 res, th_val, _, _ = analyze_fa_crop(img_crop, mask_crop, config, self.current_stats)
                 
-                # Draw
                 for cat in res:
                     for item in res[cat]:
                         item['contour'][:, 0] += y_min
@@ -945,7 +895,6 @@ class FAAnalyzerApp:
         params = self.global_params
         config = self._convert_um_to_px_config(params)
         
-        # Progress Window
         prog_win = tk.Toplevel(self.root)
         prog_win.title("Batch Processing...")
         prog_win.geometry("400x300")
@@ -965,7 +914,6 @@ class FAAnalyzerApp:
             for idx, (img_path, json_path, s_tag) in enumerate(self.file_list):
                 log(f"Processing {s_tag}...")
                 
-                # Load Image [Patch] Use Safe Loader
                 if idx == self.current_idx and self.current_img is not None:
                     img = self.current_img
                     stats = self.current_stats
@@ -1066,23 +1014,43 @@ class FAAnalyzerApp:
         if dfs:
             full_df = pd.concat(dfs, ignore_index=True)
             
-            # Summary Pivot
-            summary = full_df.groupby(['File', 'Category']).size().unstack(fill_value=0)
-            if 'OK' not in summary.columns: summary['OK'] = 0
-            if 'Large' not in summary.columns: summary['Large'] = 0
-            if 'Small' not in summary.columns: summary['Small'] = 0
+            # --- [Enhanced Logic Starts] ---
+            # 1. Cell-wise Summary
+            cell_grp = full_df.groupby(['File', 'Cell_ID', 'Category']).size().unstack(fill_value=0)
+            for cat in ['OK', 'Large', 'Small']:
+                if cat not in cell_grp.columns: cell_grp[cat] = 0
             
-            summary['Total_Count'] = summary['OK'] + summary['Large'] + summary['Small']
+            cell_grp = cell_grp[['OK', 'Large', 'Small']]
+            cell_grp['Total_Count'] = cell_grp.sum(axis=1)
             
-            # Save Excel
+            # 2. File-wise Summary
+            file_grp = full_df.groupby(['File', 'Category']).size().unstack(fill_value=0)
+            for cat in ['OK', 'Large', 'Small']:
+                if cat not in file_grp.columns: file_grp[cat] = 0
+            file_grp = file_grp[['OK', 'Large', 'Small']]
+            
+            cells_per_file = full_df.groupby('File')['Cell_ID'].nunique()
+            
+            file_summary = file_grp.copy()
+            file_summary['Total_FA_Count'] = file_summary.sum(axis=1)
+            file_summary['Analyzed_Cells_Count'] = cells_per_file
+            
+            # Calculate Averages
+            file_summary['Avg_FA_per_Cell'] = file_summary['Total_FA_Count'] / file_summary['Analyzed_Cells_Count']
+            file_summary['Avg_OK_FA_per_Cell'] = file_summary['OK'] / file_summary['Analyzed_Cells_Count']
+            
+            file_summary = file_summary.round(2)
+            # --- [Enhanced Logic Ends] ---
+            
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            out_xls = os.path.join(out_root, f"Batch_Summary_{timestamp}.xlsx")
+            out_xls = os.path.join(out_root, f"Batch_Summary_Enhanced_{timestamp}.xlsx")
             
             with pd.ExcelWriter(out_xls) as writer:
-                summary.to_excel(writer, sheet_name='Summary_Counts')
+                file_summary.to_excel(writer, sheet_name='File_Summary')
+                cell_grp.to_excel(writer, sheet_name='Cell_Summary')
                 full_df.to_excel(writer, sheet_name='All_Data', index=False)
                 
-            messagebox.showinfo("Success", f"Report generated:\n{out_xls}")
+            messagebox.showinfo("Success", f"Report generated:\n{out_xls}\n\n- Sheet1: File Stats (Avg included)\n- Sheet2: Cell Stats\n- Sheet3: Raw Data")
         else:
             messagebox.showinfo("Info", "No data to merge.")
 
@@ -1226,7 +1194,6 @@ class ExportDialog:
                 prog.update()
                 
                 try:
-                    # [Patch] Use Safe Loader
                     img = load_image_safe(img_path)
                     if img is None: continue
                     
