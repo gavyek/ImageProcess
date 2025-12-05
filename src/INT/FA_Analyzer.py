@@ -277,6 +277,7 @@ class FAAnalyzerApp:
         self.mat_dir = tk.StringVar()
         self.out_dir = tk.StringVar()
         self.channel_var = tk.StringVar(value="1")
+        self.cmap_var = tk.StringVar(value="grayscale")
         
         self.pixel_size_mode = tk.StringVar(value="0.112")
         self.pixel_size_custom = tk.StringVar(value="")
@@ -286,6 +287,7 @@ class FAAnalyzerApp:
         self.max_area_um_var = tk.DoubleVar(value=30.0)
         self.close_rad_var = tk.IntVar(value=1)
         self.subtract_bg_var = tk.BooleanVar(value=True) 
+        self.visual_boost_var = tk.DoubleVar(value=0.0)
         
         self.auto_zoom_var = tk.BooleanVar(value=True)
         self.show_mat_var = tk.BooleanVar(value=True)
@@ -390,6 +392,17 @@ class FAAnalyzerApp:
         self.lbl_mode.pack(anchor='w')
         
         ttk.Checkbutton(mode_frame, text="Auto-Zoom to Selected Cell", variable=self.auto_zoom_var, command=self._update_plot).pack(anchor='w', pady=(2,0))
+        
+        # [NEW] Pseudo-color Dropdown (Moved to Top)
+        pc_inner_frame = ttk.Frame(mode_frame)
+        pc_inner_frame.pack(anchor='w', pady=(2,0))
+        ttk.Label(pc_inner_frame, text="Pseudo Color:").pack(side='left')
+        self.combo_cmap = ttk.Combobox(pc_inner_frame, textvariable=self.cmap_var, 
+                                       values=["grayscale", "cyan", "green", "red", "yellow", "magenta"], 
+                                       state="readonly", width=12)
+        self.combo_cmap.pack(side='left', padx=5)
+        self.combo_cmap.bind("<<ComboboxSelected>>", lambda e: self._update_plot())
+
         self.chk_show_mat = ttk.Checkbutton(mode_frame, text="Show Legacy MATLAB Data", variable=self.show_mat_var, command=self._update_plot)
         
         def add_control(label, var, from_, to_, res):
@@ -415,6 +428,16 @@ class FAAnalyzerApp:
         int_frame = ttk.LabelFrame(right_frame, text="Intensity")
         int_frame.pack(fill='x', padx=10, pady=10)
         ttk.Checkbutton(int_frame, text="Subtract Background (Bottom 1%)", variable=self.subtract_bg_var, command=self._on_param_update).pack(anchor='w', padx=5, pady=5)
+        
+        # [NEW] Visual Brightness Slider
+        vb_frame = ttk.Frame(int_frame)
+        vb_frame.pack(fill='x', padx=5, pady=2)
+        ttk.Label(vb_frame, text="Visual Brightness (-15x ~ +15x)").pack(anchor='w')
+        self.scale_boost = tk.Scale(vb_frame, variable=self.visual_boost_var, from_=-15.0, to=15.0, resolution=0.1, orient="horizontal", showvalue=1)
+        self.scale_boost.pack(fill='x', expand=True)
+        self.scale_boost.bind("<ButtonRelease-1>", lambda e: self._update_plot())
+        self.scale_boost.config(command=lambda v: self._update_plot()) # Real-time update
+
 
         legend_frame = ttk.Frame(right_frame)
         legend_frame.pack(pady=10, anchor='w', padx=10)
@@ -684,7 +707,42 @@ class FAAnalyzerApp:
         _, _, s_tag = self.file_list[self.current_idx]
         
         self.ax.clear()
-        self.ax.imshow(img, cmap='gray', interpolation='nearest') 
+
+        # Handle Colormap
+        cmap_name = self.cmap_var.get()
+        if cmap_name == 'grayscale':
+            cmap = 'gray'
+        else:
+            # Create custom colormap (Black -> Color)
+            try:
+                cmap = LinearSegmentedColormap.from_list(f"custom_{cmap_name}", ["black", cmap_name])
+            except:
+                cmap = 'gray'
+
+        # Calculate Dynamic vmin/vmax for Brightness Control
+        boost_val = self.visual_boost_var.get()
+        
+        flat_img = img.ravel()
+        vmin = flat_img.min()
+        raw_max = flat_img.max()
+        dynamic_range = raw_max - vmin
+        
+        if boost_val >= 0:
+            # Positive: Brighten (Shrink dynamic range)
+            # 0 -> 1.0 (Normal)
+            # 15 -> 16.0 (1/16 range)
+            factor = 1.0 + boost_val
+            new_range = dynamic_range / factor
+            vmax = vmin + new_range
+        else:
+            # Negative: Darken (Expand dynamic range)
+            # 0 -> 1.0 (Normal)
+            # -15 -> 16.0 (16x range)
+            factor = 1.0 + abs(boost_val)
+            new_range = dynamic_range * factor
+            vmax = vmin + new_range
+        
+        self.ax.imshow(img, cmap=cmap, vmin=vmin, vmax=vmax, interpolation='nearest') 
         
         if self.enable_matlab_var.get() and self.show_mat_var.get() and self.current_mat_polys:
             for poly in self.current_mat_polys:
